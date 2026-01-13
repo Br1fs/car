@@ -1,0 +1,42 @@
+.navbar {
+  display: flex;                  
+  justify-content: start;         /* ссылки слева, можно space-around/space-between */
+  align-items: center;            
+  width: 100%;                    
+  background-color: #60ee9b;         
+  color: rgb(223, 12, 12);
+  padding: 16px 32px;             
+  box-sizing: border-box;
+  position: fixed; 
+  top: 0;        
+  gap: 0;  
+  /*z-index: 1000; */                      /* gap убираем, используем padding внутри ссылок */
+}
+
+.navbar a {
+  display: flex;                  /* делаем ссылку блочным flex */
+  align-items: center;            /* текст по центру вертикально */
+  justify-content: center;        /* текст по центру горизонтально */
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0 16px;                /* отступ слева и справа */
+  position: relative;             
+  min-width: 100px;               /* ширина «блока» ссылки, можно менять */
+  transition: color 0.3s;
+}
+
+/* Вертикальная линия справа от блока ссылки */
+.navbar a:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;                       /* линия прилегает к правому краю блока ссылки */
+  top: 10%;                        /* небольшие отступы сверху/снизу */
+  height: 80%;                     /* высота линии */
+  width: 1px;
+  background-color: white;
+}
+
+.navbar a:hover {
+  color: #ffd700;                 
+}

@@ -1,0 +1,41 @@
+.app-form {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 20px;
+  padding: 20px;
+}
+
+.left, .right {
+  background: #f5f3f3;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.left input {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 6px;
+}
+
+.characteristics {
+  max-height: 600px;
+  overflow-y: auto;
+  border: 1px solid #bdbcbc;
+  padding: 10px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed #dbcece;
+  padding: 4px 0;
+}
+
+button {
+  margin-top: 15px;
+  padding: 10px;
+  background: #030214;
+  color: rgb(209, 14, 14);
+  border: none;
+  cursor: pointer;
+}
