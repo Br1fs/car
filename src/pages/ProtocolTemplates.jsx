@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_URL } from "../config";
 
 export default function ProtocolTemplates() {
   const [list, setList] = useState([]);
@@ -8,7 +9,7 @@ export default function ProtocolTemplates() {
 
   useEffect(() => {
     axios
-      .get("http://localhost:5000/api/protocol-templates")
+      .get("${API_URL}/api/protocol-templates")
       .then((res) => setList(res.data))
       .catch((err) => console.error(err));
   }, []);
@@ -17,7 +18,7 @@ export default function ProtocolTemplates() {
     if (!window.confirm("Удалить шаблон?")) return;
 
     try {
-      await axios.delete(`http://localhost:5000/api/protocol-templates/${id}`);
+      await axios.delete(`${API_URL}/api/protocol-templates/${id}`);
       setList((prev) => prev.filter((x) => x._id !== id));
     } catch (err) {
       console.error(err);

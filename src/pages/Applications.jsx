@@ -38,7 +38,7 @@ const deleteSelected = async () => {
     await Promise.all(
       selectedIds.map(id =>
         axios.delete(
-          `http://localhost:5000/api/applications/${id}`
+          `${API_URL}/api/applications/${id}`
         )
       )
     );
@@ -223,7 +223,7 @@ const deleteSelected = async () => {
 
                   try {
                     await axios.delete(
-                      `http://localhost:5000/api/applications/${app._id}`
+                      `${API_URL}/api/applications/${app._id}`
                     );
                     setApps((prev) =>
                       prev.filter((a) => a._id !== app._id)

@@ -60,7 +60,7 @@ export default function Zayavki() {
     try {
       if (!window.confirm("Удалить сформированную заявку?")) return;
 
-      await axios.delete(`http://localhost:5000/api/zayavki/${id}`);
+      await axios.delete(`${API_URL}/api/zayavki/${id}`);
       setZayavki((prev) => prev.filter((z) => z._id !== id));
       setSelectedIds((prev) => prev.filter((x) => x !== id));
     } catch (err) {
@@ -93,7 +93,7 @@ export default function Zayavki() {
   };
 
   const handleDownload = (id) => {
-    window.open(`http://localhost:5000/api/zayavki/${id}/pdf`, "_blank");
+    window.open(`${API_URL}/api/zayavki/${id}/pdf`, "_blank");
   };
 
   if (!zayavki.length && !loading) {

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import "../styles/ApplicationView.css";
+import { API_URL } from "../config";
 
 export default function ApplicationView() {
   const { id } = useParams();
@@ -11,7 +12,7 @@ export default function ApplicationView() {
 
   useEffect(() => {
     axios
-      .get(`http://localhost:5000/api/applications/${id}`)
+      .get(`${API_URL}/api/applications/${id}`)
       .then(res => setApp(res.data))
       .catch(() => alert("Заявка не найдена"));
   }, [id]);
@@ -45,7 +46,7 @@ export default function ApplicationView() {
     );
 
     await axios.put(
-      `http://localhost:5000/api/applications/${id}`,
+      `${API_URL}/api/applications/${id}`,
       formDataToSend,
       {
         headers: {
@@ -68,7 +69,7 @@ export default function ApplicationView() {
   const deleteApplication = async () => {
     if (!window.confirm("Удалить заявку?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/applications/${id}`);
+      await axios.delete(`${API_URL}/api/applications/${id}`);
       alert("Заявка удалена");
       navigate("/applications");
     } catch (err) {
@@ -177,7 +178,7 @@ export default function ApplicationView() {
           files.map((file, idx) => (
             <li key={key + idx}>
               <a
-                href={`http://localhost:5000/uploads/${file}`}
+                href={`${API_URL}/uploads/${file}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >

@@ -80,7 +80,7 @@ export default function Protocols() {
     try {
       if (!window.confirm("Удалить протокол?")) return;
 
-      await axios.delete(`http://localhost:5000/api/protocols/${id}`);
+      await axios.delete(`${API_URL}/api/protocols/${id}`);
 
       setProtocols((prev) => {
         const updated = prev.filter((p) => p._id !== id);
@@ -125,7 +125,7 @@ export default function Protocols() {
 
   const handleDownload = (id) => {
     window.open(
-      `http://localhost:5000/api/protocols/${id}/pdf-template`,
+      `${API_URL}/api/protocols/${id}/pdf-template`,
       "_blank"
     );
   };

@@ -58,7 +58,7 @@ export default function Dogovors() {
   const handleDelete = async (id) => {
     try {
       if (!window.confirm("Удалить договор?")) return;
-      await axios.delete(`http://localhost:5000/api/dogovors/${id}`);
+      await axios.delete(`${API_URL}/api/dogovors/${id}`);
       setDogovors((prev) => prev.filter((d) => d._id !== id));
       setSelectedIds((prev) => prev.filter((x) => x !== id));
     } catch (err) {
@@ -91,7 +91,7 @@ export default function Dogovors() {
   };
 
   const handleDownload = (id) => {
-    window.open(`http://localhost:5000/api/dogovors/${id}/pdf-template`, "_blank");
+    window.open(`${API_URL}/api/dogovors/${id}/pdf-template`, "_blank");
   };
 
   if (!dogovors.length && !loading) {

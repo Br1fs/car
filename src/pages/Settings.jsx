@@ -37,7 +37,7 @@ export default function Settings() {
   const approveUser = async (id) => {
     try {
       await axios.patch(
-        `http://localhost:5000/api/admin/users/${id}/approve`,
+        `${API_URL}/api/admin/users/${id}/approve`,
         {},
         {
           headers: {
@@ -54,7 +54,7 @@ export default function Settings() {
   const rejectUser = async (id) => {
     try {
       await axios.patch(
-        `http://localhost:5000/api/admin/users/${id}/reject`,
+        `${API_URL}/api/admin/users/${id}/reject`,
         {},
         {
           headers: {
@@ -70,7 +70,7 @@ export default function Settings() {
 
   const deleteUser = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/admin/users/${id}`, {
+      await axios.delete(`${API_URL}/api/admin/users/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

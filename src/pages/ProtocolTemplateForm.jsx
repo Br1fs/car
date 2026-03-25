@@ -18,7 +18,7 @@ export default function ProtocolTemplateForm({ isNew }) {
   useEffect(() => {
     if (!isNew) {
       axios
-        .get(`http://localhost:5000/api/protocol-templates/${id}`)
+        .get(`${API_URL}/api/protocol-templates/${id}`)
         .then((res) => setTemplate(res.data))
         .catch((err) => console.error(err))
         .finally(() => setLoading(false));
@@ -96,7 +96,7 @@ export default function ProtocolTemplateForm({ isNew }) {
         navigate(`/protocol-templates/${res.data._id}/edit`);
       } else {
         await axios.put(
-          `http://localhost:5000/api/protocol-templates/${id}`,
+          `${API_URL}/api/protocol-templates/${id}`,
           dataToSend
         );
         alert("Шаблон сохранён ✅");

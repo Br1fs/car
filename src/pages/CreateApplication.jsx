@@ -236,7 +236,7 @@ const handleCreateZayavka = async () => {
     alert("Заявка сформирована");
 
     window.open(
-      `http://localhost:5000/api/zayavki/${zayavkaId}/pdf`,
+      `${API_URL}/api/zayavki/${zayavkaId}/pdf`,
       "_blank"
     );
 
@@ -271,7 +271,7 @@ const handleCreateDogovor = async () => {
     alert("Договор создан");
 
     window.open(
-      `http://localhost:5000/api/dogovors/${dogovorId}/pdf-template`,
+      `${API_URL}/api/dogovors/${dogovorId}/pdf-template`,
       "_blank"
     );
 
@@ -309,7 +309,7 @@ const handleCreateDecision = async () => {
     alert("Решение создано");
 
     window.open(
-      `http://localhost:5000/api/decisions/${decisionId}/pdf-template`,
+      `${API_URL}/api/decisions/${decisionId}/pdf-template`,
       "_blank"
     );
 
@@ -404,7 +404,7 @@ const handleCreateProtocol = async () => {
     alert("Протокол создан!");
 
     window.open(
-      `http://localhost:5000/api/protocols/${protocolId}/pdf-template`,
+      `${API_URL}/api/protocols/${protocolId}/pdf-template`,
       "_blank"
     );
 
@@ -510,7 +510,7 @@ console.log("SAVE TO APPLICATION:", {
   protocolId,
 });
     await axios.put(
-      `http://localhost:5000/api/applications/${id}`,
+      `${API_URL}/api/applications/${id}`,
       formDataToSend,
       { headers: { "Content-Type": "multipart/form-data" } }
     );

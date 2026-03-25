@@ -143,7 +143,7 @@ export default function AddCar() {
       };
 
       if (id) {
-        await axios.put(`http://localhost:5000/api/cars/${id}`, preparedForm);
+        await axios.put(`${API_URL}/api/cars/${id}`, preparedForm);
         alert("Изменения сохранены");
       } else {
         await axios.post(`${API_URL}/api/cars/add`, preparedForm);
@@ -161,7 +161,7 @@ export default function AddCar() {
       if (!id) return;
       if (!window.confirm("Удалить машину?")) return;
 
-      await axios.delete(`http://localhost:5000/api/cars/${id}`);
+      await axios.delete(`${API_URL}/api/cars/${id}`);
       alert("Машина удалена");
       navigate("/cars-management");
     } catch (err) {

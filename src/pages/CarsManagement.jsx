@@ -65,7 +65,7 @@ export default function CarsManagement() {
     try {
       if (!window.confirm("Удалить машину?")) return;
 
-      await axios.delete(`http://localhost:5000/api/cars/${id}`);
+      await axios.delete(`${API_URL}/api/cars/${id}`);
 
       setCars((prev) => prev.filter((car) => car._id !== id));
       setSelectedIds((prev) => prev.filter((x) => x !== id));

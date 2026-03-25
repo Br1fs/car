@@ -94,7 +94,7 @@ export default function CarDetail() {
 
   const handleSave = async () => {
     try {
-      await axios.put(`http://localhost:5000/api/cars/${id}`, form);
+      await axios.put(`${API_URL}/api/cars/${id}`, form);
       alert("Изменения сохранены!");
     } catch (err) {
       console.error(err);
@@ -105,7 +105,7 @@ export default function CarDetail() {
   const handleDelete = async () => {
     if (!window.confirm("Удалить эту машину?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/cars/${id}`);
+      await axios.delete(`${API_URL}/api/cars/${id}`);
       alert("Машина удалена!");
       navigate("/cars");
     } catch (err) {

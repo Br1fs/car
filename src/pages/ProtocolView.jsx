@@ -33,7 +33,7 @@ export default function ProtocolView() {
       {/* ✅ Новый правильный маршрут */}
       <button
         onClick={() =>
-          window.open(`http://localhost:5000/api/protocols/${id}/pdf-template`, "_blank")
+          window.open(`${API_URL}/api/protocols/${id}/pdf-template`, "_blank")
           
         }
       >

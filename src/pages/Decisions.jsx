@@ -65,7 +65,7 @@ export default function Decisions() {
     try {
       if (!window.confirm("Удалить решение?")) return;
 
-      await axios.delete(`http://localhost:5000/api/decisions/${id}`);
+      await axios.delete(`${API_URL}/api/decisions/${id}`);
       setDecisions((prev) => prev.filter((d) => d._id !== id));
       setSelectedIds((prev) => prev.filter((x) => x !== id));
     } catch (err) {
@@ -98,7 +98,7 @@ export default function Decisions() {
   };
 
   const handleDownload = (id) => {
-    window.open(`http://localhost:5000/api/decisions/${id}/pdf-template`, "_blank");
+    window.open(`${API_URL}/api/decisions/${id}/pdf-template`, "_blank");
   };
 
   if (!decisions.length && !loading) {
