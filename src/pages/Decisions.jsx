@@ -13,7 +13,7 @@ export default function Decisions() {
   useEffect(() => {
     const fetchDecisions = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/decisions");
+        const res = await axios.get(`${API_URL}/api/decisions`);
         setDecisions(res.data);
       } catch (err) {
         console.error("Ошибка загрузки решений:", err);

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { API_URL } from "../config";
 
 export default function ProtocolView() {
   const { id } = useParams();
   const [protocol, setProtocol] = useState(null);
 
   useEffect(() => {
-    axios.get(`http://localhost:5000/api/protocols/${id}`)
+    axios.get(`${API_URL}/api/protocols/${id}`)
       .then(res => {
         const data = res.data;
 

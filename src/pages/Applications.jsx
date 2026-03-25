@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import "../styles/Applications.css";
 import formatDateRu from "../utils/formatDateRu";
+import { API_URL } from "../config";
 
 export default function Applications() {
   // const [applications, setApplications] = useState([]);
@@ -72,7 +73,7 @@ const deleteSelected = async () => {
   useEffect(() => {
     const fetchApps = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/applications");
+        const res = await axios.get(`${API_URL}/api/applications`);
 
         // новые сверху
         const sorted = [...res.data].sort(

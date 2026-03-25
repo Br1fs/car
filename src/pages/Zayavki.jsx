@@ -13,7 +13,7 @@ export default function Zayavki() {
   useEffect(() => {
     const fetchZayavki = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/zayavki");
+        const res = await axios.get(`${API_URL}/api/zayavki`);
         setZayavki(res.data);
       } catch (err) {
         console.error("Ошибка загрузки заявок:", err);

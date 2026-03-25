@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import "../styles/Settings.css";
+import { API_URL } from "../config";
 
 export default function Settings() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -12,7 +13,7 @@ export default function Settings() {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/users", {
+      const res = await axios.get(`${API_URL}/api/admin/users`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

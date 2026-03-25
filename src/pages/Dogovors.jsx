@@ -13,7 +13,7 @@ export default function Dogovors() {
   useEffect(() => {
     const fetchDogovors = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/dogovors");
+        const res = await axios.get(`${API_URL}/api/dogovors`);
         setDogovors(res.data);
       } catch (err) {
         console.error("Ошибка загрузки договоров:", err);

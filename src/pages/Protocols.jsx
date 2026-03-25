@@ -26,7 +26,7 @@ export default function Protocols() {
 
     const fetchProtocols = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/protocols");
+        const res = await axios.get(`${API_URL}/api/protocols`);
         setProtocols(res.data);
         sessionStorage.setItem("protocols_cache", JSON.stringify(res.data));
       } catch (err) {

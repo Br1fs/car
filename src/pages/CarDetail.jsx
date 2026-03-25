@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import "../styles/CarsManagement.css";
+import { API_URL } from "../config";
 
 export default function CarDetail() {
   const { id } = useParams();
@@ -74,7 +75,7 @@ export default function CarDetail() {
   useEffect(() => {
     const fetchCar = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/cars/${id}`);
+        const res = await axios.get(`${API_URL}/api/cars/${id}`);
         setForm(res.data);
       } catch (err) {
         console.error(err);

@@ -102,7 +102,7 @@ export default function AddCar() {
     const loadCar = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`http://localhost:5000/api/cars/${id}`);
+        const res = await axios.get(`${API_URL}/api/cars/${id}`);
         setForm(res.data || {});
       } catch (err) {
         console.error(err);

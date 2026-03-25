@@ -13,7 +13,7 @@ export default function CarsManagement() {
   useEffect(() => {
     const fetchCars = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/cars");
+        const res = await axios.get(`${API_URL}/api/cars`);
         setCars(res.data || []);
       } catch (err) {
         console.error("Ошибка загрузки машин:", err);

@@ -141,7 +141,7 @@ const [zayavkaDate, setZayavkaDate] = useState("");
   useEffect(() => {
     const loadCars = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/cars");
+        const res = await axios.get(`${API_URL}/api/cars`);
         setCars(res.data);
       } catch (err) {
         console.error("Ошибка загрузки машин:", err);
@@ -180,7 +180,7 @@ const [zayavkaDate, setZayavkaDate] = useState("");
   const formatDate = (date) =>
     date ? new Date(date).toISOString().split("T")[0] : "";
 
-  axios.get(`http://localhost:5000/api/applications/${id}`)
+  axios.get(`${API_URL}/api/applications/${id}`)
     .then(res => {
       const data = res.data;
 
@@ -343,7 +343,7 @@ const handleCreateProtocol = async () => {
     let weather = { temp: "", humidity: "", pressure: "" };
 
     try {
-      const w = await axios.get("http://localhost:5000/api/weather", {
+      const w = await axios.get(`${API_URL}/api/weather`, {
         params: { city: "Almaty", date: protocolDate }
       });
 
@@ -1020,7 +1020,7 @@ const navigate = useNavigate();
   type="button"
   onClick={async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/weather", {
+      const res = await axios.get(`${API_URL}/api/weather`, {
         params: { city: "Almaty", date: protocolDate }
       });
 
