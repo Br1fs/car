@@ -1,0 +1,141 @@
+.add-car-page {
+  max-width: 1100px;
+  margin: 30px auto;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  box-sizing: border-box;
+}
+
+.add-car-page h2 {
+  margin: 0 0 24px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cars-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.cars-form-row {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  box-sizing: border-box;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.cars-form-row:hover {
+  border-color: #b8c7db;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.cars-form-row label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.cars-form-row input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.cars-form-row input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  background: #fcfdff;
+}
+
+.cars-form-row input::placeholder {
+  color: #94a3b8;
+}
+
+.save-button {
+  margin-top: 22px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.save-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.28);
+}
+
+.save-button:active {
+  transform: translateY(0);
+  opacity: 0.95;
+}
+
+@media (max-width: 900px) {
+  .add-car-page {
+    margin: 16px;
+    padding: 18px;
+  }
+
+  .cars-form-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .cars-form-row label {
+    margin-bottom: 2px;
+  }
+
+  .save-button {
+    width: 100%;
+  }
+}
+.add-car-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 0 0;
+  margin-top: 20px;
+  background: linear-gradient(to top, #f8fafc 70%, rgba(248, 250, 252, 0));
+}
+
+.delete-bottom-button {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 12px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-bottom-button:hover {
+  background: #b91c1c;
+}

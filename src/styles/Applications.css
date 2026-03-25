@@ -1,0 +1,244 @@
+/* ================== СТРАНИЦА ================== */
+.applications-page {
+  padding: 2px 20px 20px;
+  background: #f4f6f9;
+  min-height: 100vh;
+}
+
+.applications-page h2 {
+  margin-bottom: 16px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* ================== ПОИСК ================== */
+.applications-search {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 14px;
+  margin: 12px 0 18px;
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  font-size: 14px;
+}
+
+.applications-search:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+/* ================== ТАБЛИЦА ================== */
+.applications-table {
+  background: #fff;
+  border-radius: 10px;
+  overflow-x: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ================== HEADER ================== */
+.table-header {
+  display: grid;
+  grid-template-columns:
+  80px
+    80px /* № */ 
+    105px/* № */
+    160px /* дата */ 
+    130px /* статус1 */ 
+    120px /* статус2 */ 
+    330px /* ФИО */ 
+    200px /* VIN */ 
+    180px /* Тип */ 
+    140px /* Марка */ 
+    150px /* Модель */ 
+    70px /* Год */ 
+    80px /* Объём */ 
+    140px /* Брокер */ 
+    350px; /* Действия */
+  background: #eef1f6;
+  font-weight: 600;
+  font-size: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.select-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.select-col input[type="checkbox"] {
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.table-header > div {
+  padding: 12px 10px;
+  border-right: 1px solid #dde2ea;
+  white-space: nowrap;
+}
+
+/* ================== СТРОКИ ================== */
+.applications-table-row {
+  display: grid;
+  grid-template-columns:
+  80px
+    80px
+    105px
+    160px
+    130px
+    120px
+    330px
+    200px
+    180px
+    140px
+    150px
+    70px
+    80px
+    140px
+    350px;
+  cursor: pointer;
+}
+
+.applications-table-row:hover {
+  background: #f8fafc;
+}
+
+.applications-table-row > div {
+  padding: 8px 10px;
+  border-right: 1px solid #f0f2f6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ================== СТАТУСЫ ================== */
+.status {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Статус №1 и №2 */
+.status-orange {
+  background: #fff3cd;
+  border: 1px solid #ff9800;
+  color: #b26a00;
+}
+
+.status-red {
+  background: #fdecea;
+  border: 1px solid #f44336;
+  color: #b71c1c;
+}
+
+.status-yellow {
+  background: #fff9c4;
+  border: 1px solid #fbc02d;
+  color: #8d6e00;
+}
+
+.status-green {
+  background: #e8f5e9;
+  border: 1px solid #4caf50;
+  color: #1b5e20;
+}
+
+.status-default {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  color: #555;
+}
+
+/* ================== ДЕЙСТВИЯ ================== */
+.actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.actions button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* открыть */
+.actions button:nth-child(1) {
+  background: #3498db;
+  color: white;
+}
+
+.actions button:nth-child(1):hover {
+  background: #2e86c1;
+}
+
+/* редактировать */
+.actions button:nth-child(2) {
+  background: #f1c40f;
+  color: #000;
+}
+
+.actions button:nth-child(2):hover {
+  background: #d4ac0d;
+}
+
+/* удалить */
+.actions button:nth-child(3) {
+  background: #e74c3c;
+  color: white;
+}
+
+.actions button:nth-child(3):hover {
+  background: #c0392b;
+}
+.bulk-delete-btn {
+  margin: 12px 0 16px;
+  padding: 10px 16px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  background: #e9ecef;
+  color: #444;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bulk-delete-btn:hover {
+  background: #dde2e6;
+}
+
+.bulk-delete-btn.active {
+  background: #dc3545;
+  border-color: #dc3545;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.25);
+}
+
+.bulk-delete-btn.active:hover {
+  background: #bb2d3b;
+}
+.save-change-btn {
+  background: #198754;
+  box-shadow: 0 3px 10px rgba(25, 135, 84, 0.25);
+}
+
+.save-change-btn:hover {
+  background: #157347;
+}
+
+.save-change-btn:active {
+  background: #146c43;
+}

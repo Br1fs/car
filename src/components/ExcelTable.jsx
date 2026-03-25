@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { HotTable } from "@handsontable/react";
-import "handsontable/dist/handsontable.css";
+import "handsontable/dist/handsontable.full.css"; // полный CSS Handsontable
 
 export default function ExcelTable() {
   const storageKey = "excelData";
-  const rows = 100;  // количество строк
-  const cols = 20;   // количество колонок
+  const rows = 40;  
+  const cols = 10;
 
-  // Генерация данных с заголовками в первой строке
+  // Генерация начальных данных
   const generateData = () =>
     Array.from({ length: rows }, (_, rowIndex) =>
       Array.from({ length: cols }, (_, colIndex) =>
@@ -24,20 +24,28 @@ export default function ExcelTable() {
     localStorage.setItem(storageKey, JSON.stringify(data));
   }, [data]);
 
+  // Динамическая высота таблицы
+  const tableHeight = window.innerHeight - 80; // вычитаем navbar
+
   return (
     <div
-      style={{width: "100%", height: "600px" /* фиксированная высота */, padding: 0 }}
+      className="excel-container"
+      style={{
+        width: "100%",
+        height: tableHeight,
+        overflow: "auto",
+      }}
     >
       <HotTable
         data={data}
         colHeaders={true}
         rowHeaders={true}
         width="100%"
-        height="600"
+        height={tableHeight}
         licenseKey="non-commercial-and-evaluation"
-        stretchH="all"
-        rowHeights={40}
-        colWidths={150}
+        stretchH="all"               // растягиваем колонки по ширине
+        rowHeights={40}              // высота строки
+        colWidths={150}              // ширина колонки
         manualColumnResize={true}
         manualRowResize={true}
         manualColumnMove={true}

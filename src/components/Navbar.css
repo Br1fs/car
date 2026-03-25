@@ -1,42 +1,80 @@
+/* Navbar container */
 .navbar {
-  display: flex;                  
-  justify-content: start;         /* ссылки слева, можно space-around/space-between */
-  align-items: center;            
-  width: 100%;                    
-  background-color: #60ee9b;         
-  color: rgb(223, 12, 12);
-  padding: 16px 32px;             
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  width: 100%;
+  left: 0;
+  right: 0;
+
+  padding: 12px 24px;
+
+  background: linear-gradient(90deg, #ec0808, #e90707);
+
   box-sizing: border-box;
-  position: fixed; 
-  top: 0;        
-  gap: 0;  
-  /*z-index: 1000; */                      /* gap убираем, используем padding внутри ссылок */
+
+  position: fixed;
+  top: 0;
+
+  z-index: 1000;
+
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* Блок с основными ссылками */
+.navbar-links {
+  display: flex;
+  gap: 16px; /* расстояние между ссылками */
+  flex-wrap: wrap; /* чтобы на маленьких экранах переносились */
+}
+
+/* Ссылки */
 .navbar a {
-  display: flex;                  /* делаем ссылку блочным flex */
-  align-items: center;            /* текст по центру вертикально */
-  justify-content: center;        /* текст по центру горизонтально */
   color: white;
   text-decoration: none;
   font-weight: 500;
-  padding: 0 16px;                /* отступ слева и справа */
-  position: relative;             
-  min-width: 100px;               /* ширина «блока» ссылки, можно менять */
-  transition: color 0.3s;
+  padding: 8px 16px;
+  border-radius: 8px;
+  position: relative;
+  transition: all 0.3s ease;
 }
 
-/* Вертикальная линия справа от блока ссылки */
-.navbar a:not(:last-child)::after {
+/* Вертикальная линия справа, кроме последней ссылки в блоке */
+.navbar-links a:not(:last-child)::after {
   content: "";
   position: absolute;
-  right: 0;                       /* линия прилегает к правому краю блока ссылки */
-  top: 10%;                        /* небольшие отступы сверху/снизу */
-  height: 80%;                     /* высота линии */
+  right: -8px;
+  top: 20%;
+  height: 60%;
   width: 1px;
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.6);
 }
 
+/* Hover эффект */
 .navbar a:hover {
-  color: #ffd700;                 
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #ffd700;
+  transform: translateY(-2px);
+}
+
+/* Отдельно ссылка выхода */
+.exit-link {
+  background-color: rgba(231, 121, 121, 0.7);
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+  color: white;
+  text-decoration: none;
+  display: inline-block;
+  font: inherit;
+}
+
+.exit-link:hover {
+  background-color: #ff4d4d;
+  transform: translateY(-2px);
 }

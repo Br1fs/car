@@ -1,0 +1,186 @@
+.cars-page {
+  padding: 24px;
+  background: #f8fafc;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.cars-page-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.cars-page-top h2 {
+  margin: 0;
+  font-size: 28px;
+  color: #0f172a;
+}
+
+.cars-page-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.add-car-btn,
+.bulk-delete-btn,
+.open-btn,
+.delete-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.add-car-btn {
+  background: #2563eb;
+  color: #fff;
+}
+
+.add-car-btn:hover {
+  background: #1d4ed8;
+}
+
+.bulk-delete-btn {
+  background: #dc2626;
+  color: #fff;
+}
+
+.bulk-delete-btn:hover {
+  background: #b91c1c;
+}
+
+.bulk-delete-btn:disabled {
+  background: #cbd5e1;
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.cars-page-header {
+  margin-bottom: 18px;
+}
+
+.cars-page-header input {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.cars-table {
+  width: 100%;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.cars-table-header,
+.cars-table-row {
+  display: grid;
+  grid-template-columns:
+    44px
+    70px
+    200px
+    200px
+    200px
+    200px
+    100px
+    100px
+    200px;
+  align-items: center;
+}
+
+.cars-table-header {
+  background: #eaf2ff;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 1px solid #dbe2ea;
+}
+
+.cars-table-header > div,
+.cars-table-row > div {
+  padding: 12px 10px;
+  border-right: 1px solid #e5e7eb;
+  box-sizing: border-box;
+  word-break: break-word;
+}
+
+.cars-table-header > div:last-child,
+.cars-table-row > div:last-child {
+  border-right: none;
+}
+
+.cars-table-row {
+  border-bottom: 1px solid #eef2f7;
+}
+
+.cars-table-row:hover {
+  background: #f8fbff;
+}
+
+.cars-table-row:last-child {
+  border-bottom: none;
+}
+
+.checkbox-col {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.checkbox-col input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.open-btn {
+  background: #2563eb;
+  color: #fff;
+}
+
+.open-btn:hover {
+  background: #1d4ed8;
+}
+
+.delete-btn {
+  background: #dc2626;
+  color: #fff;
+}
+
+.delete-btn:hover {
+  background: #b91c1c;
+}
+
+.cars-empty {
+  padding: 18px;
+  color: #64748b;
+}
+
+@media (max-width: 1400px) {
+  .cars-table {
+    overflow-x: auto;
+  }
+
+  .cars-table-header,
+  .cars-table-row {
+    min-width: 1020px;
+  }
+}

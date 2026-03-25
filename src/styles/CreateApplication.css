@@ -1,41 +1,376 @@
 .app-form {
-  display: grid;
-  grid-template-columns: 1fr 1.3fr;
+  display: flex;
   gap: 20px;
   padding: 20px;
+  margin-top: 40px;
+  box-sizing: border-box;
+  min-height: calc(100vh - 40px);
+  align-items: stretch;
 }
 
-.left, .right {
-  background: #f5f3f3;
-  padding: 15px;
-  border-radius: 6px;
+/* обе колонки */
+.left,
+.right {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  min-height: 0;
+  box-sizing: border-box;
+  padding-bottom: 120px;
 }
 
-.left input {
-  width: 100%;
-  margin-bottom: 8px;
-  padding: 6px;
-}
-
-.characteristics {
-  max-height: 600px;
+/* левая колонка */
+.left {
+  flex: 0 0 35%;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
   overflow-y: auto;
-  border: 1px solid #bdbcbc;
-  padding: 10px;
+  overscroll-behavior: contain;
+  min-height: calc(100vh - 80px);
+  max-height: calc(100vh - 80px);
 }
 
-.row {
+/* правая колонка */
+.right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: calc(100vh - 80px);
+  max-height: calc(100vh - 80px);
+  padding-bottom: 110px;
+}
+.left input,
+.left select,
+.left textarea {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+.left h3 {
+  margin-top: 20px;
+}
+
+.left label {
+  font-weight: 500;
+}
+
+.left input[type="file"] {
+  padding: 3px;
+}
+
+.save-btn {
+  margin-top: 10px;
+  padding: 10px;
+  border: none;
+  background-color: #4c49fd;
+  color: white;
+  font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.save-btn:hover {
+  background-color: #45a049;
+}
+
+.characteristics-table {
+  width: 100%;
+  border: 1px solid #999;
+  align-self: stretch;
+  border-bottom: none;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.table-cell {
+  border-bottom: 1px solid #999;
+  border-right: 1px solid #999;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+
+.table-row .table-cell:last-child {
+  border-right: none;
+}
+
+.table-cell.label {
+  font-weight: 600;
+  background: #f7f7f7;
+  word-break: break-word;
+}
+
+.table-cell.value {
+  min-width: 0;
+}
+
+.table-cell.value textarea {
+  width: 100%;
+  min-height: 42px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #bbb;
+  font-size: 14px;
+  font-family: inherit;
+  overflow-wrap: anywhere;
+}
+
+/* панель кнопок снизу */
+.pdf-buttons {
+  position: fixed;
+  left: 50%;
+  bottom: 15px;
+  transform: translateX(-50%);
+
+  left: 20px;
+right: 20px;
+transform: none;
+
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+
+  background: rgba(255,255,255,0.97);
+  padding: 14px 18px;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+
+  z-index: 1000;
+}
+
+
+/* кнопки */
+.pdf-btn {
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(13, 110, 253, 0.25);
+}
+
+.pdf-btn:hover {
+  background: #0b5ed7;
+  transform: translateY(-1px);
+}
+
+.pdf-btn:active {
+  background: #0a58ca;
+  transform: translateY(0);
+}
+
+.create-header {
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px dashed #dbcece;
-  padding: 4px 0;
+  align-items: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 
-button {
-  margin-top: 15px;
-  padding: 10px;
-  background: #030214;
-  color: rgb(209, 14, 14);
-  border: none;
+.save-top-btn {
+  padding: 6px 12px;
   cursor: pointer;
+}
+
+.whatsapp-btn {
+  margin-left: 10px;
+  padding: 8px 12px;
+  border: none;
+  background-color: #25d366;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.whatsapp-btn:hover {
+  background-color: #1ebe5d;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal {
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.modal input,
+.modal select,
+.modal textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.modal button {
+  margin-right: 10px;
+}
+
+
+.characteristics-table {
+  width: 100% !important;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  border: 1px solid #999;
+  border-bottom: none;
+}
+
+.table-row {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: 260px minmax(500px, 1fr) !important;
+  align-items: stretch;
+}
+
+.table-cell {
+  box-sizing: border-box;
+  border-right: 1px solid #999;
+  border-bottom: 1px solid #999;
+  padding: 6px 8px;
+}
+
+.table-row .table-cell:last-child {
+  border-right: none;
+}
+
+.table-cell.label {
+  background: #f7f7f7;
+  font-weight: 600;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.table-cell.value {
+  width: 100%;
+  min-width: 0;
+}
+
+.table-cell.value textarea {
+  display: block;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid #bbb;
+  font-size: 14px;
+  font-family: inherit;
+  overflow-wrap: anywhere;
+}
+.full-width-table {
+  width: 100% !important;
+}
+
+/* ===== Общая кнопка ===== */
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+
+/* ===== СИНЯЯ (Создать) ===== */
+.btn-blue {
+  background: #0d6efd;
+  color: white;
+}
+
+.btn-blue:hover {
+  background: #0b5ed7;
+}
+
+.btn-blue:active {
+  background: #0a58ca;
+}
+
+
+/* ===== СЕРАЯ (обычная) ===== */
+.btn-gray {
+  background: #e9ecef;
+  color: #212529;
+  border: 1px solid #ced4da;
+}
+
+.btn-gray:hover {
+  background: #dee2e6;
+}
+
+.btn-gray:active {
+  background: #ced4da;
+}
+
+
+/* ===== КРАСНАЯ (Отмена / удалить) ===== */
+.btn-red {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-red:hover {
+  background: #bb2d3b;
+}
+
+.btn-red:active {
+  background: #a52834;
+}
+.back-btn {
+  position: fixed;
+  left: 20px;
+  bottom: 15px;
+  z-index: 1000;
+
+  padding: 10px 18px;
+  border: 1px solid #cfd4da;
+  border-radius: 10px;
+  background: #f1f3f5;
+  color: #212529;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-btn:hover {
+  background: #e2e6ea;
 }

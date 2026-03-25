@@ -1,0 +1,28 @@
+.excel-container {
+  width: 100%;
+  height: calc(100vh - 80px);
+  overflow: auto;
+}
+
+/* Handsontable base */
+.handsontable {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.handsontable .htCore td {
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+.handsontable .htCore th {
+  background-color: #e0f7f1;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* текущая ячейка */
+.handsontable .current.highlight {
+  background-color: #0475ad !important;
+  color: #fff;
+}

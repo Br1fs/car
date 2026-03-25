@@ -1,0 +1,240 @@
+.protocols-page {
+  padding: 24px;
+  background: #f8fafc;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.protocols-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  gap: 12px;
+}
+
+.protocols-header h2 {
+  margin: 0;
+  font-size: 28px;
+  color: #0f172a;
+}
+
+.protocols-settings-btn {
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.protocols-settings-btn:hover {
+  background: #4338ca;
+}
+
+.protocols-search {
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.protocols-table {
+  width: 100%;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.protocols-table-header,
+.protocols-table-row {
+  display: grid;
+  grid-template-columns:
+    70px
+    160px
+    130px
+    260px
+    200px
+    120px
+    140px
+    100px
+    110px
+    110px
+    200px;
+  align-items: center;
+}
+
+.protocols-table-header {
+  background: #eaf2ff;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 1px solid #dbe2ea;
+}
+
+.protocols-table-header > div,
+.protocols-table-row > div {
+  padding: 12px 10px;
+  border-right: 1px solid #e5e7eb;
+  box-sizing: border-box;
+  word-break: break-word;
+}
+
+.protocols-table-header > div:last-child,
+.protocols-table-row > div:last-child {
+  border-right: none;
+}
+
+.protocols-table-row {
+  border-bottom: 1px solid #eef2f7;
+}
+
+.protocols-table-row:hover {
+  background: #f8fbff;
+}
+
+.protocols-table-row:last-child {
+  border-bottom: none;
+}
+
+.protocols-table .vin {
+  font-family: monospace;
+  font-size: 16px;
+}
+
+.protocols-table .actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.download-btn,
+.delete-btn {
+  border: none;
+  border-radius: 7px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.download-btn {
+  background: #2563eb;
+  color: #fff;
+}
+
+.download-btn:hover {
+  background: #1d4ed8;
+}
+
+.delete-btn {
+  background: #dc2626;
+  color: #fff;
+}
+
+.delete-btn:hover {
+  background: #b91c1c;
+}
+
+.protocols-empty {
+  color: #64748b;
+  padding: 20px 0;
+  font-size: 15px;
+}
+
+@media (max-width: 1500px) {
+  .protocols-table {
+    overflow-x: auto;
+  }
+
+  .protocols-table-header,
+  .protocols-table-row {
+    min-width: 1370px;
+  }
+}
+
+@media (max-width: 768px) {
+  .protocols-page {
+    padding: 16px;
+  }
+
+  .protocols-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .protocols-settings-btn {
+    width: 100%;
+  }
+
+  .protocols-search {
+    max-width: 100%;
+  }
+}
+.loading-page {
+  opacity: 0.96;
+}
+.protocols-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.protocols-bulk-delete-btn {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.protocols-bulk-delete-btn:hover {
+  background: #b91c1c;
+}
+
+.protocols-bulk-delete-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  color: #475569;
+}
+
+.checkbox-col {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.protocols-table-header,
+.protocols-table-row {
+  display: grid;
+  grid-template-columns:
+    44px
+    70px
+    170px
+    120px
+    390px
+    200px
+    180px
+    180px
+    180px
+    130px
+    100px
+    240px;
+  align-items: center;
+}
+
+.checkbox-col input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}

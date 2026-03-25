@@ -1,0 +1,308 @@
+.appview-page {
+  max-width: 1150px;
+  margin: 24px auto;
+  padding: 20px 20px 40px;
+  background: #f4f7fb;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.appview-saving-banner {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #e7f1ff;
+  color: #084298;
+  border: 1px solid #b6d4fe;
+  font-weight: 700;
+}
+
+.appview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.appview-header h2 {
+  margin: 0;
+  font-size: 28px;
+  color: #1f2937;
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.appview-header-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.appview-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  padding: 20px 22px;
+  margin-bottom: 18px;
+}
+
+.appview-card h3 {
+  margin: 0 0 14px;
+  font-size: 20px;
+  color: #1f2937;
+}
+
+.appview-card p {
+  margin: 10px 0;
+  color: #374151;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.appview-card b {
+  color: #111827;
+}
+
+.appview-divider {
+  height: 1px;
+  background: #dbe3ef;
+  margin: 18px 0;
+}
+
+.appview-car-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.appview-car-grid > div {
+  background: #f8fafc;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+  padding: 12px;
+  color: #374151;
+}
+
+.appview-docs-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.appview-docs-card li {
+  margin: 8px 0;
+}
+
+.appview-docs-card a {
+  color: #0d6efd;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.appview-docs-card a:hover {
+  text-decoration: underline;
+}
+
+.appview-page input,
+.appview-page select {
+  min-width: 220px;
+  padding: 9px 12px;
+  border: 1px solid #cfd6df;
+  border-radius: 10px;
+  background: #fff;
+  color: #1f2937;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.appview-page input:focus,
+.appview-page select:focus {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.12);
+}
+
+.appview-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.appview-status-select {
+  min-width: 220px;
+  font-weight: 700;
+}
+
+.appview-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.appview-btn:hover {
+  transform: translateY(-1px);
+}
+
+.appview-btn-edit {
+  background: #0d6efd;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.22);
+}
+
+.appview-btn-edit:hover {
+  background: #0b5ed7;
+}
+
+.appview-btn-delete {
+  background: #dc3545;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.22);
+}
+
+.appview-btn-delete:hover {
+  background: #bb2d3b;
+}
+
+.appview-btn-success {
+  background: #198754;
+  color: #fff;
+  margin-left: 8px;
+  box-shadow: 0 4px 12px rgba(25, 135, 84, 0.22);
+}
+
+.appview-btn-success:hover {
+  background: #157347;
+}
+
+.appview-btn-secondary {
+  margin-left: 10px;
+  background: #6c757d;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.2);
+}
+
+.appview-btn-secondary:hover {
+  background: #5c636a;
+}
+
+.appview-bottom-bar {
+  margin-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.appview-btn-back {
+  background: #6c757d;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(108, 117, 125, 0.22);
+}
+
+.appview-btn-back:hover {
+  background: #5c636a;
+}
+
+.appview-btn-save {
+  background: #0d6efd;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(13, 110, 253, 0.24);
+}
+
+.appview-btn-save:hover {
+  background: #0b5ed7;
+}
+
+.appview-btn-save:disabled,
+.appview-btn-back:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.appview-page .status-orange {
+  background: #fff3cd;
+  color: #9a6700;
+  border: 1px solid #ff9800;
+}
+
+.appview-page .status-red {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #dc3545;
+}
+
+.appview-page .status-yellow {
+  background: #fff4cc;
+  color: #8a6d00;
+  border: 1px solid #fbc02d;
+}
+
+.appview-page .status-green {
+  background: #d1e7dd;
+  color: #0f5132;
+  border: 1px solid #4caf50;
+}
+
+.appview-page .status-default {
+  background: #e9ecef;
+  color: #495057;
+  border: 1px solid #ced4da;
+}
+
+@media (max-width: 992px) {
+  .appview-car-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .appview-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .appview-header-buttons {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .appview-page {
+    padding: 14px 14px 30px;
+  }
+
+  .appview-car-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appview-page input,
+  .appview-page select {
+    min-width: 100%;
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  .appview-bottom-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appview-header h2 {
+    font-size: 22px;
+  }
+}

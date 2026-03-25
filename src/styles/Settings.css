@@ -1,0 +1,120 @@
+.settings-page {
+  min-height: calc(100vh - 70px);
+  padding: 32px 20px;
+  box-sizing: border-box;
+  background: #f5f7fb;
+}
+
+.settings-card {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  padding: 28px;
+  box-sizing: border-box;
+}
+
+.settings-title {
+  margin: 0 0 10px 0;
+  font-size: 30px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.settings-subtitle {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.settings-top-message {
+  margin-bottom: 18px;
+  font-size: 15px;
+}
+
+.settings-message {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.settings-user-card {
+  max-width: 700px;
+}
+
+.settings-user-info {
+  margin-top: 18px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 16px;
+  color: #1f2937;
+}
+
+.settings-closed {
+  max-width: 700px;
+}
+
+.settings-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.settings-table th,
+.settings-table td {
+  border: 1px solid #dbe1ea;
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.settings-table th {
+  background: #f3f6fb;
+  font-weight: 700;
+  color: #111827;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-btn.approve {
+  background: #16a34a;
+  color: white;
+}
+
+.settings-btn.reject {
+  background: #f59e0b;
+  color: white;
+}
+
+.settings-btn.delete {
+  background: #dc2626;
+  color: white;
+}
+
+.settings-btn:hover {
+  opacity: 0.92;
+}

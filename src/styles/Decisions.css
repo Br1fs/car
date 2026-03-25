@@ -1,0 +1,178 @@
+.decisions-page {
+  padding: 2px 20px 20px;
+  background: #f4f6f9;
+  min-height: 100vh;
+}
+
+.decisions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.decisions-page h2 {
+  margin-bottom: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.decisions-search {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 14px;
+  margin: 12px 0 18px;
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  font-size: 14px;
+}
+
+.decisions-search:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+.decisions-table {
+  background: #fff;
+  border-radius: 10px;
+  overflow-x: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.decisions-table-header {
+  display: grid;
+  grid-template-columns:
+    80px
+    80px
+    150px
+    140px
+    220px
+    160px
+    160px
+    90px
+    150px
+    120px
+    250px;
+  background: #eef1f6;
+  font-weight: 600;
+  font-size: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.decisions-table-header > div {
+  padding: 12px 10px;
+  border-right: 1px solid #dde2ea;
+  white-space: nowrap;
+}
+
+.decisions-table-row {
+  display: grid;
+  grid-template-columns:
+    80px
+    80px
+    150px
+    140px
+    220px
+    160px
+    160px
+    90px
+    150px
+    120px
+    250px;
+}
+
+.decisions-table-row:hover {
+  background: #f8fafc;
+}
+
+.decisions-table-row > div {
+  padding: 8px 10px;
+  border-right: 1px solid #f0f2f6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkbox-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.checkbox-col input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.actions button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.download-btn {
+  background: #3498db;
+  color: white;
+}
+
+.download-btn:hover {
+  background: #2e86c1;
+}
+
+.delete-btn {
+  background: #e74c3c;
+  color: white;
+}
+
+.delete-btn:hover {
+  background: #c0392b;
+}
+
+.decisions-bulk-delete-btn {
+  margin: 12px 0 16px;
+  padding: 10px 16px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  background: #e9ecef;
+  color: #444;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.decisions-bulk-delete-btn:hover {
+  background: #dde2e6;
+}
+
+.decisions-bulk-delete-btn.active {
+  background: #dc3545;
+  border-color: #dc3545;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.25);
+}
+
+.decisions-bulk-delete-btn.active:hover {
+  background: #bb2d3b;
+}
+
+.decisions-empty {
+  background: #fff;
+  border-radius: 10px;
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}

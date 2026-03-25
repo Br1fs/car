@@ -1,0 +1,114 @@
+/* HEADER A4 */
+
+.protocol-header-fixed {
+  display: flex;
+  width: 100%;
+  border: 1px solid #000;
+  margin-bottom: 10px;
+}
+
+.header-cell {
+  border-right: 1px solid #000;
+  padding: 6px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-cell:last-child {
+  border-right: none;
+}
+
+/* 20% / 40% / 40% как в PDF */
+
+.logo-cell {
+  width: 20%;
+}
+
+.protocol-header-fixed .header-cell:nth-child(2) {
+  width: 40%;
+}
+
+.protocol-header-fixed .header-cell:nth-child(3) {
+  width: 40%;
+}
+
+/* логотип */
+
+.logo-cell img {
+  max-width: 100%;
+  max-height: 70px;
+  object-fit: contain;
+}
+
+/* текст */
+
+.protocol-header-fixed textarea {
+  width: 100%;
+  border: none;
+  resize: none;
+  font-size: 11px;
+  text-align: center;
+  outline: none;
+}
+body {
+  background: #dcdcdc;
+  font-family: Roboto, sans-serif;
+}
+
+/* Обертка */
+.a4-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+/* Сам лист */
+.a4-page {
+  width: 210mm;
+  min-height: 297mm;
+  background: #fff;
+  padding: 20mm 15mm;
+  box-sizing: border-box;
+  box-shadow: 0 0 15px rgba(0,0,0,0.2);
+}
+
+/* Заголовки */
+.section-title {
+  text-align: center;
+  font-weight: bold;
+  margin: 15px 0 8px;
+}
+
+/* Табличный стиль как PDF */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+}
+
+.table-row {
+  display: flex;
+}
+
+.table-cell {
+  border: 1px solid #000;
+  padding: 4px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.table-cell input,
+.table-cell textarea {
+  width: 100%;
+  border: none;
+  resize: none;
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+}
