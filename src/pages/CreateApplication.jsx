@@ -506,8 +506,8 @@ const handleCreateProtocol = async () => {
 console.log("SAVE TO APPLICATION:", {
   ...safeForm,
   protocolNumber,
-  protocolDate,
-  protocolId,
+  // protocolDate,
+  // protocolId,
 });
     await axios.put(
       `${API_URL}/api/applications/${id}`,
