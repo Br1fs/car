@@ -15,6 +15,8 @@
     "express": "^4.22.1",
     "fontkit": "^2.0.4",
     "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "mongodb": "^7.0.0",
     "mongoose": "^8.23.0",
     "multer": "^2.1.1",
