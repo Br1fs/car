@@ -59,6 +59,8 @@ const deleteSelected = async () => {
     if (!status) return "status-default";
 
     const s = status.toLowerCase();
+    if (s.includes("прозвона нет")) return "status-red";
+  if (s.includes("прозвонен")) return "status-green";
 
     // Статус №1
     if (s === "на одобрении") return "status-orange";

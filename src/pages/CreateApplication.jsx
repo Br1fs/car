@@ -33,7 +33,27 @@ const isOCategory = (category) => {
     c.startsWith("o4")
   );
 };
+const needsFuelSelect = (category) => {
+  const c = String(category || "").trim().toLowerCase();
 
+  if (!c) return false;
+  if (isOCategory(c)) return false;
+  if (isN3Category(c)) return false;
+
+  return c.startsWith("m") || c.startsWith("n1") || c.startsWith("n2");
+};
+const getTemplateCategory = (category) => {
+  const c = String(category || "").trim().toUpperCase();
+
+  if (c === "N1G") return "N1";
+  if (c === "N2G") return "N2";
+  if (c === "N3G") return "N3";
+  if (c === "M1G") return "M1";
+  if (c === "M2G") return "M2";
+  if (c === "M3G") return "M3";
+
+  return c;
+};
 export default function CreateApplication() {
   const [form, setForm] = useState({
     type: "",
@@ -44,6 +64,7 @@ export default function CreateApplication() {
     volume: "",
     vin: "",
     category: "",
+    templateCategory: "",
     EcologicalClass: "",
     fio: "",
     iin: "",
@@ -120,7 +141,7 @@ const [humidity, setHumidity] = useState("");
 const [pressure, setPressure] = useState("");
 const [smokeValue, setSmokeValue] = useState("");
 const [showProtocolModal, setShowProtocolModal] = useState(false);
-const effectiveFuelType = isN3Category(form.category) ? "Дизель" : form.fuelType;
+const effectiveFuelType = isN3Category(form.templateCategory) ? "Дизель" : form.fuelType;
 
 const protocolFuel = String(effectiveFuelType || "").trim().toLowerCase();
 const isBenzin = protocolFuel === "бензин";
@@ -185,10 +206,11 @@ const [zayavkaDate, setZayavkaDate] = useState("");
       const data = res.data;
 
       setForm({
-        ...data,
-        createdAt: formatDate(data.createdAt),
-        protocolDate: formatDate(data.protocolDate),
-      });
+  ...data,
+  templateCategory: getTemplateCategory(data.category),
+  createdAt: formatDate(data.createdAt),
+  protocolDate: formatDate(data.protocolDate),
+});
     })
     .catch(err => {
       console.error(err);
@@ -325,15 +347,17 @@ const handleCreateDecision = async () => {
 
 const handleCreateProtocol = async () => {
   try {
-    const finalFuelType = isN3Category(form.category) ? "Дизель" : form.fuelType;
+    const realCategory = form.category;
+    const templateCategory = form.templateCategory || getTemplateCategory(form.category);
+    const finalFuelType = isN3Category(templateCategory) ? "Дизель" : form.fuelType;
 
-    if (!form.category) return alert("Выберите категорию");
+    if (!templateCategory) return alert("Выберите категорию");
 
-    if (!isOCategory(form.category) && !finalFuelType) {
+    if (!isOCategory(templateCategory) && !finalFuelType) {
       return alert("Выберите тип топлива");
     }
 
-    if (isN3Category(form.category) && !form.n3Type) {
+    if (isN3Category(templateCategory) && !form.n3Type) {
       return alert("Выберите тип N3: седельный или грузовой");
     }
 
@@ -359,7 +383,9 @@ const handleCreateProtocol = async () => {
     const protocolData = {
       applicationId: id || null,
 
-      category: form.category,
+      category: realCategory,              // вот тут будет N3G
+      templateCategory: templateCategory,  // вот тут будет N3
+
       fuelType: finalFuelType,
       n3Type: String(form.n3Type || "").trim().toLowerCase(),
 
@@ -426,24 +452,24 @@ const handleCreateProtocol = async () => {
       [name]: value,
     };
 
-    if (name === "category") {
-      if (isN3Category(value)) {
-        next.fuelType = "Дизель";
-        next.n3Type = "";
-      } else if (isOCategory(value)) {
-        next.fuelType = "";
-        next.n3Type = "";
-        next.EcologicalClass = "";
-      } else if (isMCategory(value)) {
-        next.fuelType = "";
-        next.n3Type = "";
-      } else {
-        next.fuelType = "";
-        next.n3Type = "";
-      }
-    }
+    if (name === "templateCategory") {
+  if (isN3Category(value)) {
+    next.fuelType = "Дизель";
+    next.n3Type = "";
+  } else if (isOCategory(value)) {
+    next.fuelType = "";
+    next.n3Type = "";
+    next.EcologicalClass = "";
+  } else if (needsFuelSelect(value)) {
+    next.fuelType = "";
+    next.n3Type = "";
+  } else {
+    next.fuelType = "";
+    next.n3Type = "";
+  }
+}
 
-    if (name === "fuelType" && isN3Category(prev.category)) {
+    if (name === "fuelType" && isN3Category(prev.templateCategory)) {
       next.fuelType = "Дизель";
     }
 
@@ -891,21 +917,25 @@ const navigate = useNavigate();
 <div className="form-group">
   <label>Категория</label>
   <select
-    name="category"
-    value={form.category}
-    onChange={handleChange}
-  >
-    <option value="">Выберите категорию</option>
-    <option value="M1">M1</option>
-    <option value="N3">N3</option>
-    <option value="O1">O1</option>
-    <option value="O2">O2</option>
-    <option value="O3">O3</option>
-    <option value="O4">O4</option>
-  </select>
+  name="templateCategory"
+  value={form.templateCategory}
+  onChange={handleChange}
+>
+  <option value="">Выберите категорию</option>
+  <option value="M1">M1</option>
+  <option value="M2">M2</option>
+  <option value="M3">M3</option>
+  <option value="N1">N1</option>
+  <option value="N2">N2</option>
+  <option value="N3">N3</option>
+  <option value="O1">O1</option>
+  <option value="O2">O2</option>
+  <option value="O3">O3</option>
+  <option value="O4">O4</option>
+</select>
 </div>
 
-{isMCategory(form.category) && !isN3Category(form.category) && (
+{needsFuelSelect(form.templateCategory) && (
   <div className="form-group">
     <label>Тип топлива</label>
     <select
@@ -921,7 +951,7 @@ const navigate = useNavigate();
   </div>
 )}
 
-{isN3Category(form.category) && (
+{isN3Category(form.templateCategory) && (
   <>
     <div className="form-group">
       <label>Тип топлива</label>
@@ -950,7 +980,7 @@ const navigate = useNavigate();
   </>
 )}
 
-{!isOCategory(form.category) && (
+{!isOCategory(form.templateCategory) && (
   <div className="form-group">
     <label>Экологический класс</label>
     <input

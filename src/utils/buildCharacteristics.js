@@ -23,18 +23,22 @@ export function buildCharacteristics(form) {
     { label: "-Адрес СБОРОЧНОГО ЗАВОДА", value: form.addressoftheassemblyplant, key: "addressoftheassemblyplant" },
     { label: "Колесная формула", value: form.Wheelarrangement, key: "Wheelarrangement" },
     { label: "ведущие колеса", value: form.drivingwheels, key: "drivingwheels" },
-    { label: "Схема компоновки транспортного средства", value: form.Vehiclelayoutdiagram, key: "Vehiclelayoutdiagram" }
+    { label: "Схема компоновки транспортного средства", value: form.Vehiclelayoutdiagram, key: "Vehiclelayoutdiagram" },
+    { label: "Тип кузова / двери", value: form.bodyType, key: "bodyType" },
+      { label: "Количество мест спереди/сзади", value: form.seats, key: "seats" }
   );
 
   // ===== Динамические поля по категориям =====
-  if (form.category === "M1") {
-    characteristics.push(
-      { label: "Тип кузова / двери", value: form.bodyType, key: "bodyType" },
-      { label: "Количество мест спереди/сзади", value: form.seats, key: "seats" }
-    );
-  }
+  // if (form.category === "M1") {
+  //   characteristics.push(
+  //     { label: "Тип кузова / двери", value: form.bodyType, key: "bodyType" },
+  //     { label: "Количество мест спереди/сзади", value: form.seats, key: "seats" }
+  //   );
+  // }
 
-  if (form.category=== "N3") {
+  const truckCategories = ["N1", "N1G", "N2", "N2G", "N3", "N3G"];
+
+  if (truckCategories.includes(form.category)) {
     characteristics.push(
       { label: "Исполнение загрузочного пространства", value: form.loadSpace, key: "loadSpace" },
       { label: "Кабина", value: form.cab, key: "cab" }
@@ -47,11 +51,13 @@ export function buildCharacteristics(form) {
     );
   }
 
-  if (form.category === "O4") {
-    characteristics.push(
-      { label: "Количество осей / колес", value: form.axles, key: "axles" }
-    );
-  }
+  const trailerCategories = ["O1", "O2", "O3", "O4"];
+
+if (trailerCategories.includes(form.category)) {
+  characteristics.push(
+    { label: "Количество осей / колес", value: form.axles, key: "axles" }
+  );
+}
 
   // ===== Общие технические характеристики =====
   characteristics.push(

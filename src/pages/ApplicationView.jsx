@@ -85,14 +85,18 @@ export default function ApplicationView() {
 
   const s = String(status).toLowerCase();
 
-  if (s.includes("одобр")) return "status-orange"; // На одобрении
-  if (s.includes("нов")) return "status-red";      // Новая
-  if (s.includes("работ")) return "status-yellow"; // В работе
-  if (s.includes("готов")) return "status-green";  // Готова
+  // Статус №2 (добавляем)
+  if (s.includes("прозвона нет")) return "status-red";
+  if (s.includes("прозвонен")) return "status-green";
+
+  // Статус №1 (оставляем как есть)
+  if (s.includes("одобр")) return "status-orange";
+  if (s.includes("нов")) return "status-red";
+  if (s.includes("работ")) return "status-yellow";
+  if (s.includes("готов")) return "status-green";
 
   return "status-default";
 };
-
 
   return (
     <div className="appview-page">
@@ -243,8 +247,8 @@ export default function ApplicationView() {
         onChange={(e) => handleChange("status2", e.target.value)}
       >
         <option value="">—</option>
-        <option>Новая</option>
-        <option>Готова</option>
+        <option>Прозвона нет</option>
+        <option>Прозвонен</option>
       </select>
     </p>
   </div>
