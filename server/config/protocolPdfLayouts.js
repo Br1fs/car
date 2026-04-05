@@ -116,7 +116,7 @@ export const protocolPdfLayouts = {
         x: 448,
         temperatureY: 268,
         humidityY: 257,
-        pressureY: 145,
+        pressureY: 143,
         size: 5,
       },
 
@@ -166,15 +166,15 @@ export const protocolPdfLayouts = {
     },
 
     page10: {
-      length: { x: 450, y: 385, size: 7 },
-      width: { x: 450, y: 348, size: 7 },
-      height: { x: 450, y: 314, size: 7 },
+      length: { x: 450, y: 377, size: 7 },
+      width: { x: 450, y: 339, size: 7 },
+      height: { x: 450, y: 304, size: 7 },
     },
 
     page11: {
       noise: { x: 450, y: 357, size: 6.5 },
-      r1: { x: 505, y: 614, size: 6.5 },
-      r2: { x: 505, y: 586, size: 6.5 },
+      r1: { x: 505, y: 615, size: 6.5 },
+      r2: { x: 505, y: 589, size: 6.5 },
     },
   },
 
@@ -203,9 +203,9 @@ export const protocolPdfLayouts = {
 
       conditions: {
         x: 448,
-        temperatureY: 268,
+        temperatureY: 267,
         humidityY: 257,
-        pressureY: 145,
+        pressureY: 143,
         size: 5,
       },
 
@@ -515,4 +515,524 @@ n3_diesel_gruzovoi: {
       r5: { x: 450, y: 251, size: 6.5 },
     },
   },
-};
+
+
+
+n1_benz: {
+    page1: {
+      rightColumn: {
+        x: 358,
+        startY: 563,
+        step: 15.3,
+
+        defaultSize: 6,
+        yearSize: 6,
+        fioSize: 6,
+        addressSize: 6,
+
+        wrapMaxWidth: 170,
+        addressMaxWidth: 165,
+
+        afterFirstDateGap: 0.01,
+        afterSecondDateGap: 2,
+        afterFioGap: 0,
+        afterAddressGap: 1,
+      },
+      protocolNumber: { x: 444, y: 631, size: 7, boldOffsetX: 0.3 },
+      protocolDate: { x: 270, y: 620, size: 7, boldOffsetX: 0.3 },
+
+      conditions: {
+        x: 442,
+        temperatureY: 253,
+        humidityY: 243,
+        pressureY: 124,
+        size: 5,
+      },
+
+      manufacturer: { x: 358, y: 360, size: 7 },
+      manufacturerAddress: { x: 358, y: 350, size: 6, maxWidth: 160, lineGap: 1 },
+
+      assemblyPlant: { x: 358, y: 319, size: 7 },
+      assemblyPlantAddress: { x: 358, y: 310, size: 6, maxWidth: 165, lineGap: 1 },
+    },
+
+    page2: {
+      extraEquipment: { x: 377, y: 205, maxWidth: 158, size: 6 },
+    },
+
+    page4: {
+      r1: { x: 505, y: 257, size: 6.5 },
+      r2: { x: 505, y: 233, size: 6.5 },
+      r3: { x: 505, y: 193, size: 6.5 },
+      r4: { x: 505, y: 157, size: 6.5 },
+      r5: { x: 505, y: 136, size: 6.5 },
+    },
+
+    page5: {
+      r1: { x: 450, y: 757, size: 6.5 },
+      r2: { x: 504, y: 717, size: 6.5 },
+      r3: { x: 504, y: 687, size: 6.5 },
+      r4: { x: 504, y: 547, size: 6.5 },
+      r5: { x: 504, y: 525, size: 6.5 },
+      r6: { x: 445, y: 500, size: 6.5 },
+      r7: { x: 450, y: 478, size: 6.5 },
+    },
+
+    page6: {
+      r1: { x: 445, y: 776, size: 6.5 },
+      r2: { x: 445, y: 686, size: 6.5 },
+      r3: { x: 450, y: 386, size: 6.5 },
+      r4: { x: 450, y: 526, size: 6.5 },
+      r5: { x: 450, y: 232, size: 6.5 },
+    },
+
+    page9: {
+      year: { x: 440, y: 658, size: 6.5 },
+      yearSuffix: { x: 456, y: 658, size: 6.5 },
+      coMin: { x: 445, y: 214, size: 6.5 },
+      coMax: { x: 445, y: 173, size: 6.5 },
+      smoke: { x: 445, y: 248, size: 6.5 },
+    },
+
+    page10: {
+      length: { x: 445, y: 272, size: 7 },
+      width: { x: 445, y: 228, size: 7 },
+      height: { x: 445, y: 188, size: 7 },
+    },
+
+    page11: {
+      noise: { x: 445, y: 426, size: 6.5 },
+    },
+  },
+n1_diesel: {
+    page1: {
+      rightColumn: {
+        x: 358,
+        startY: 563,
+        step: 15.3,
+
+        defaultSize: 6,
+        yearSize: 6,
+        fioSize: 6,
+        addressSize: 6,
+
+        wrapMaxWidth: 170,
+        addressMaxWidth: 165,
+
+        afterFirstDateGap: 0.01,
+        afterSecondDateGap: 2,
+        afterFioGap: 0,
+        afterAddressGap: 1,
+      },
+      protocolNumber: { x: 444, y: 631, size: 7, boldOffsetX: 0.3 },
+      protocolDate: { x: 270, y: 620, size: 7, boldOffsetX: 0.3 },
+
+      conditions: {
+        x: 442,
+        temperatureY: 253,
+        humidityY: 243,
+        pressureY: 124,
+        size: 5,
+      },
+
+      manufacturer: { x: 358, y: 360, size: 7 },
+      manufacturerAddress: { x: 358, y: 350, size: 6, maxWidth: 160, lineGap: 1 },
+
+      assemblyPlant: { x: 358, y: 319, size: 7 },
+      assemblyPlantAddress: { x: 358, y: 310, size: 6, maxWidth: 165, lineGap: 1 },
+    },
+
+    page2: {
+      extraEquipment: { x: 377, y: 205, maxWidth: 158, size: 6 },
+    },
+
+    page4: {
+      r1: { x: 505, y: 257, size: 6.5 },
+      r2: { x: 505, y: 233, size: 6.5 },
+      r3: { x: 505, y: 193, size: 6.5 },
+      r4: { x: 505, y: 157, size: 6.5 },
+      r5: { x: 505, y: 134, size: 6.5 },
+    },
+
+    page5: {
+      r1: { x: 450, y: 757, size: 6.5 },
+      r2: { x: 504, y: 717, size: 6.5 },
+      r3: { x: 504, y: 687, size: 6.5 },
+      r4: { x: 504, y: 547, size: 6.5 },
+      r5: { x: 504, y: 525, size: 6.5 },
+      r6: { x: 445, y: 500, size: 6.5 },
+      r7: { x: 450, y: 478, size: 6.5 },
+    },
+
+    page6: {
+      r1: { x: 445, y: 776, size: 6.5 },
+      r2: { x: 445, y: 686, size: 6.5 },
+      r3: { x: 450, y: 386, size: 6.5 },
+      r4: { x: 450, y: 526, size: 6.5 },
+      r5: { x: 450, y: 232, size: 6.5 },
+    },
+
+    page9: {
+      year: { x: 440, y: 658, size: 6.5 },
+      yearSuffix: { x: 456, y: 658, size: 6.5 },
+      coMin: { x: 445, y: 214, size: 6.5 },
+      coMax: { x: 445, y: 173, size: 6.5 },
+      smoke: { x: 445, y: 196, size: 6.5 },
+    },
+
+    page10: {
+      length: { x: 445, y: 272, size: 7 },
+      width: { x: 445, y: 228, size: 7 },
+      height: { x: 445, y: 188, size: 7 },
+    },
+
+    page11: {
+      noise: { x: 445, y: 426, size: 6.5 },
+    },
+  },
+
+n1_electro: {
+    page1: {
+      rightColumn: {
+        x: 358,
+        startY: 563,
+        step: 15.3,
+
+        defaultSize: 6,
+        yearSize: 6,
+        fioSize: 6,
+        addressSize: 6,
+
+        wrapMaxWidth: 170,
+        addressMaxWidth: 165,
+
+        afterFirstDateGap: 0.01,
+        afterSecondDateGap: 2,
+        afterFioGap: 0,
+        afterAddressGap: 1,
+      },
+      protocolNumber: { x: 444, y: 631, size: 7, boldOffsetX: 0.3 },
+      protocolDate: { x: 270, y: 620, size: 7, boldOffsetX: 0.3 },
+
+      conditions: {
+        x: 442,
+        temperatureY: 253,
+        humidityY: 243,
+        pressureY: 124,
+        size: 5,
+      },
+
+      manufacturer: { x: 358, y: 360, size: 7 },
+      manufacturerAddress: { x: 358, y: 350, size: 6, maxWidth: 160, lineGap: 1 },
+
+      assemblyPlant: { x: 358, y: 319, size: 7 },
+      assemblyPlantAddress: { x: 358, y: 310, size: 6, maxWidth: 165, lineGap: 1 },
+    },
+
+    page2: {
+      extraEquipment: { x: 377, y: 205, maxWidth: 158, size: 6 },
+    },
+
+    page4: {
+      r1: { x: 505, y: 257, size: 6.5 },
+      r2: { x: 505, y: 233, size: 6.5 },
+      r3: { x: 505, y: 193, size: 6.5 },
+      r4: { x: 505, y: 157, size: 6.5 },
+      r5: { x: 505, y: 134, size: 6.5 },
+    },
+
+    page5: {
+      r1: { x: 450, y: 757, size: 6.5 },
+      r2: { x: 504, y: 717, size: 6.5 },
+      r3: { x: 504, y: 687, size: 6.5 },
+      r4: { x: 504, y: 547, size: 6.5 },
+      r5: { x: 504, y: 525, size: 6.5 },
+      r6: { x: 445, y: 500, size: 6.5 },
+      r7: { x: 450, y: 478, size: 6.5 },
+    },
+
+    page6: {
+      r1: { x: 445, y: 776, size: 6.5 },
+      r2: { x: 445, y: 686, size: 6.5 },
+      r3: { x: 450, y: 386, size: 6.5 },
+      r4: { x: 450, y: 526, size: 6.5 },
+      r5: { x: 450, y: 232, size: 6.5 },
+    },
+
+    page9: {
+      year: { x: 440, y: 658, size: 6.5 },
+      yearSuffix: { x: 456, y: 658, size: 6.5 },
+    },
+
+    page10: {
+      length: { x: 445, y: 272, size: 7 },
+      width: { x: 445, y: 228, size: 7 },
+      height: { x: 445, y: 188, size: 7 },
+    },
+
+    
+  },
+n2_benz: {
+    page1: {
+      rightColumn: {
+        x: 358,
+        startY: 563,
+        step: 15.3,
+
+        defaultSize: 6,
+        yearSize: 6,
+        fioSize: 6,
+        addressSize: 5,
+
+        wrapMaxWidth: 170,
+        addressMaxWidth: 165,
+
+        afterFirstDateGap: 0.01,
+        afterSecondDateGap: 2.1,
+        afterFioGap: 0,
+        afterAddressGap: 1,
+      },
+      protocolNumber: { x: 444, y: 630, size: 7, boldOffsetX: 0.3 },
+      protocolDate: { x: 270, y: 618, size: 7, boldOffsetX: 0.3 },
+
+      conditions: {
+        x: 442,
+        temperatureY: 251,
+        humidityY: 241,
+        pressureY: 121,
+        size: 5,
+      },
+
+      manufacturer: { x: 358, y: 360, size: 7 },
+      manufacturerAddress: { x: 358, y: 350, size: 6, maxWidth: 160, lineGap: 1 },
+
+      assemblyPlant: { x: 358, y: 319, size: 7 },
+      assemblyPlantAddress: { x: 358, y: 310, size: 6, maxWidth: 165, lineGap: 1 },
+    },
+
+    page2: {
+      extraEquipment: { x: 377, y: 200, maxWidth: 158, size: 6 },
+    },
+
+    page4: {
+      r1: { x: 505, y: 248, size: 6.5 },
+      r2: { x: 505, y: 226, size: 6.5 },
+      r3: { x: 505, y: 189, size: 6.5 },
+      r4: { x: 505, y: 149, size: 6.5 },
+      r5: { x: 505, y: 128, size: 6.5 },
+    },
+
+    page5: {
+      r1: { x: 450, y: 757, size: 6.5 },
+      r2: { x: 504, y: 714, size: 6.5 },
+      r3: { x: 504, y: 674, size: 6.5 },
+      r4: { x: 504, y: 531, size: 6.5 },
+      r5: { x: 504, y: 509, size: 6.5 },
+      r6: { x: 445, y: 485, size: 6.5 },
+      r7: { x: 450, y: 457, size: 6.5 },
+    },
+
+    page6: {
+      r1: { x: 445, y: 776, size: 6.5 },
+       r6: { x: 445, y: 753, size: 6.5 },
+      r2: { x: 445, y: 685, size: 6.5 },
+      r3: { x: 445, y: 320, size: 6.5 },
+      r4: { x: 445, y: 472, size: 6.5 },
+      r5: { x: 445, y: 153, size: 6.5 },
+    },
+
+    page9: {
+      year: { x: 440, y: 312, size: 6.5 },
+      yearSuffix: { x: 456, y: 312, size: 6.5 },
+    },
+
+     page10: {
+    coMin: { x: 445, y: 474, size: 6.5 },
+    coMax: { x: 445, y: 437, size: 6.5 },
+  },
+
+  page11: {
+    length: { x: 445, y: 560, size: 7 },
+    width: { x: 445, y: 518, size: 7 },
+    height: { x: 445, y: 476, size: 7 },
+  },
+
+  page12: {
+    noise: { x: 445, y: 600, size: 6.5 },
+  },
+  },
+
+
+  n2_diesel: {
+  page1: {
+    rightColumn: {
+      x: 358,
+      startY: 563,
+      step: 15.3,
+
+      defaultSize: 6,
+      yearSize: 6,
+      fioSize: 6,
+      addressSize: 6,
+
+      wrapMaxWidth: 170,
+      addressMaxWidth: 165,
+
+      afterFirstDateGap: 0.01,
+      afterSecondDateGap: 2.05,
+      afterFioGap: 0,
+      afterAddressGap: 1,
+    },
+    protocolNumber: { x: 444, y: 630, size: 7, boldOffsetX: 0.3 },
+    protocolDate: { x: 270, y: 618, size: 7, boldOffsetX: 0.3 },
+
+    conditions: {
+      x: 442,
+      temperatureY: 251,
+      humidityY: 241,
+      pressureY: 121,
+      size: 5,
+    },
+
+    manufacturer: { x: 358, y: 360, size: 7 },
+    manufacturerAddress: { x: 358, y: 350, size: 6, maxWidth: 160, lineGap: 1 },
+
+    assemblyPlant: { x: 358, y: 319, size: 7 },
+    assemblyPlantAddress: { x: 358, y: 310, size: 6, maxWidth: 165, lineGap: 1 },
+  },
+
+  page2: {
+    extraEquipment: { x: 377, y: 200, maxWidth: 158, size: 6 },
+  },
+
+  page4: {
+    r1: { x: 505, y: 248, size: 6.5 },
+    r2: { x: 505, y: 226, size: 6.5 },
+    r3: { x: 505, y: 189, size: 6.5 },
+    r4: { x: 505, y: 149, size: 6.5 },
+    r5: { x: 505, y: 128, size: 6.5 },
+  },
+
+  page5: {
+    r1: { x: 450, y: 757, size: 6.5 },
+    r2: { x: 504, y: 714, size: 6.5 },
+    r3: { x: 504, y: 674, size: 6.5 },
+    r4: { x: 504, y: 531, size: 6.5 },
+    r5: { x: 504, y: 509, size: 6.5 },
+    r6: { x: 445, y: 485, size: 6.5 },
+    r7: { x: 450, y: 457, size: 6.5 },
+  },
+
+  page6: {
+      r1: { x: 445, y: 776, size: 6.5 },
+       r6: { x: 445, y: 753, size: 6.5 },
+      r2: { x: 445, y: 685, size: 6.5 },
+      r3: { x: 445, y: 320, size: 6.5 },
+      r4: { x: 445, y: 472, size: 6.5 },
+      r5: { x: 445, y: 153, size: 6.5 },
+    },
+
+    page9: {
+      year: { x: 440, y: 312, size: 6.5 },
+      yearSuffix: { x: 456, y: 312, size: 6.5 },
+    },
+
+  page10: {
+    smoke: { x: 445, y: 450, size: 6.5 },
+  },
+
+  page11: {
+    length: { x: 445, y: 560, size: 7 },
+    width: { x: 445, y: 518, size: 7 },
+    height: { x: 445, y: 476, size: 7 },
+  },
+
+  page12: {
+    noise: { x: 445, y: 600, size: 6.5 },
+  },
+  
+},
+n2_electro: {
+    page1: {
+      rightColumn: {
+        x: 358,
+        startY: 563,
+        step: 15.3,
+
+        defaultSize: 6,
+        yearSize: 6,
+        fioSize: 6,
+        addressSize: 5,
+
+        wrapMaxWidth: 170,
+        addressMaxWidth: 165,
+
+        afterFirstDateGap: 0.01,
+        afterSecondDateGap: 2.1,
+        afterFioGap: 0,
+        afterAddressGap: 1,
+      },
+      protocolNumber: { x: 444, y: 630, size: 7, boldOffsetX: 0.3 },
+      protocolDate: { x: 270, y: 618, size: 7, boldOffsetX: 0.3 },
+
+      conditions: {
+        x: 442,
+        temperatureY: 251,
+        humidityY: 241,
+        pressureY: 121,
+        size: 5,
+      },
+
+      manufacturer: { x: 358, y: 360, size: 7 },
+      manufacturerAddress: { x: 358, y: 350, size: 6, maxWidth: 160, lineGap: 1 },
+
+      assemblyPlant: { x: 358, y: 319, size: 7 },
+      assemblyPlantAddress: { x: 358, y: 310, size: 6, maxWidth: 165, lineGap: 1 },
+    },
+
+    page2: {
+      extraEquipment: { x: 377, y: 200, maxWidth: 158, size: 6 },
+    },
+
+    page4: {
+      r1: { x: 505, y: 248, size: 6.5 },
+      r2: { x: 505, y: 226, size: 6.5 },
+      r3: { x: 505, y: 189, size: 6.5 },
+      r4: { x: 505, y: 149, size: 6.5 },
+      r5: { x: 505, y: 128, size: 6.5 },
+    },
+
+    page5: {
+      r1: { x: 450, y: 757, size: 6.5 },
+      r2: { x: 504, y: 714, size: 6.5 },
+      r3: { x: 504, y: 674, size: 6.5 },
+      r4: { x: 504, y: 531, size: 6.5 },
+      r5: { x: 504, y: 509, size: 6.5 },
+      r6: { x: 445, y: 485, size: 6.5 },
+      r7: { x: 450, y: 457, size: 6.5 },
+    },
+
+    page6: {
+      r1: { x: 445, y: 776, size: 6.5 },
+       r6: { x: 445, y: 753, size: 6.5 },
+      r2: { x: 445, y: 685, size: 6.5 },
+      r3: { x: 445, y: 320, size: 6.5 },
+      r4: { x: 445, y: 472, size: 6.5 },
+      r5: { x: 445, y: 153, size: 6.5 },
+    },
+
+    page9: {
+      year: { x: 440, y: 312, size: 6.5 },
+      yearSuffix: { x: 456, y: 312, size: 6.5 },
+    },
+
+    
+
+  page11: {
+    length: { x: 445, y: 560, size: 7 },
+    width: { x: 445, y: 518, size: 7 },
+    height: { x: 445, y: 476, size: 7 },
+  },
+},
+  };
+  

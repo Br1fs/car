@@ -74,18 +74,7 @@ function normalizeFuelType(fuel) {
   return "benz";
 }
 
-function normalizeCategory(category) {
-  const value = String(category || "").trim().toLowerCase();
 
-  if (value.startsWith("m1")) return "m1";
-  if (value.startsWith("n3")) return "n3";
-  if (value.startsWith("o1")) return "o";
-  if (value.startsWith("o2")) return "o";
-  if (value.startsWith("o3")) return "o";
-  if (value.startsWith("o4")) return "o";
-
-  return value;
-}
 
 function isTrailerCategory(category) {
   const value = String(category || "").trim().toLowerCase();
@@ -100,21 +89,65 @@ function isTrailerCategory(category) {
 function isN3Category(category) {
   return String(category || "").trim().toLowerCase().startsWith("n3");
 }
+function normalizeCategory(category) {
+  const value = String(category || "").trim().toLowerCase();
+
+  if (value.startsWith("m1")) return "m1";
+  if (value.startsWith("m2")) return "m2";
+  if (value.startsWith("m3")) return "m3";
+
+  if (value.startsWith("n1")) return "n1";
+  if (value.startsWith("n2")) return "n2";
+  if (value.startsWith("n3")) return "n3";
+
+  if (value.startsWith("o1")) return "o1";
+  if (value.startsWith("o2")) return "o2";
+  if (value.startsWith("o3")) return "o3";
+  if (value.startsWith("o4")) return "o4";
+
+  return value;
+}
+
+function normalizeTemplateCategory(category) {
+  const value = String(category || "").trim().toLowerCase();
+
+  if (value === "m1" || value === "m1g") return "m1";
+  if (value === "m2" || value === "m2g") return "m2";
+  if (value === "m3" || value === "m3g") return "m3";
+
+  if (value === "n1" || value === "n1g") return "n1";
+  if (value === "n2" || value === "n2g") return "n2";
+  if (value === "n3" || value === "n3g") return "n3";
+
+  if (value === "o1") return "o1";
+  if (value === "o2") return "o2";
+  if (value === "o3") return "o3";
+  if (value === "o4") return "o4";
+
+  return value;
+}
 
 function getTemplateKey(protocol) {
-  const category = normalizeCategory(protocol.category);
+  const rawCategory = protocol.templateCategory || protocol.category;
+  const category = normalizeTemplateCategory(rawCategory);
+  const fuelKey = normalizeFuelType(protocol.fuelType || protocol.fuel);
   const n3Type = String(protocol.n3Type || "").trim().toLowerCase();
 
-  if (category === "o") return "o";
+  if (
+  category === "o1" ||
+  category === "o2" ||
+  category === "o3" ||
+  category === "o4"
+) {
+  return "o";
+}
 
   if (category === "n3") {
     if (n3Type === "sedelnyi") return "n3_diesel_sedelnyi";
     if (n3Type === "gruzovoi") return "n3_diesel_gruzovoi";
-
     throw new Error("Для N3 не выбран тип: sedelnyi / gruzovoi");
   }
 
-  const fuelKey = normalizeFuelType(protocol.fuelType || protocol.fuel);
   return `${category}_${fuelKey}`;
 }
 
@@ -123,53 +156,40 @@ function getTemplatePath(protocol) {
     return path.join(__dirname, "..", "templates", protocol.pdfTemplate);
   }
 
-  const category = String(protocol.category || "").trim().toLowerCase();
-  const fuel = String(protocol.fuelType || protocol.fuel || "").trim().toLowerCase();
-  const n3Type = String(protocol.n3Type || "").trim().toLowerCase();
+  const templateKey = getTemplateKey(protocol);
 
-  let fileName = null;
+  const fileMap = {
+    m1_benz: "m1_benz.pdf",
+    m1_diesel: "m1_diesel.pdf",
+    m1_electro: "m1_electro.pdf",
 
-  // =====================
-  // M1
-  // =====================
-  if (category.startsWith("m1")) {
-    if (fuel.includes("бенз")) {
-      fileName = "m1_benz.pdf";
-    } else if (fuel.includes("диз")) {
-      fileName = "m1_diesel.pdf";
-    } else if (fuel.includes("элект") || fuel.includes("electric")) {
-      fileName = "m1_electro.pdf";
-    }
-  }
+    m2_benz: "m2_benz.pdf",
+    m2_diesel: "m2_diesel.pdf",
+    m2_electro: "m2_electro.pdf",
 
-  // =====================
-  // N3
-  // =====================
-  else if (category.startsWith("n3")) {
-    if (n3Type === "sedelnyi") {
-      fileName = "n3_diesel_sedelnyi.pdf";
-    } else if (n3Type === "gruzovoi") {
-      fileName = "n3_diesel_gruzovoi.pdf";
-    } else {
-      throw new Error("Для N3 не выбран тип: sedelnyi / gruzovoi");
-    }
-  }
+    m3_benz: "m3_benz.pdf",
+    m3_diesel: "m3_diesel.pdf",
+    m3_electro: "m3_electro.pdf",
 
-  // =====================
-  // O1 O2 O3 O4
-  // =====================
-  else if (
-    category.startsWith("o1") ||
-    category.startsWith("o2") ||
-    category.startsWith("o3") ||
-    category.startsWith("o4")
-  ) {
-    fileName = "o.pdf";
-  }
+    n1_benz: "n1_benz.pdf",
+    n1_diesel: "n1_diesel.pdf",
+    n1_electro: "n1_electro.pdf",
+
+    n2_benz: "n2_benz.pdf",
+    n2_diesel: "n2_diesel.pdf",
+    n2_electro: "n2_electro.pdf",
+
+    n3_diesel_sedelnyi: "n3_diesel_sedelnyi.pdf",
+    n3_diesel_gruzovoi: "n3_diesel_gruzovoi.pdf",
+
+    o: "o.pdf",
+  };
+
+  const fileName = fileMap[templateKey];
 
   if (!fileName) {
     throw new Error(
-      `Шаблон не найден: category=${protocol.category}, fuel=${protocol.fuelType}, n3Type=${protocol.n3Type}`
+      `Шаблон не найден: category=${protocol.category}, templateCategory=${protocol.templateCategory}, fuel=${protocol.fuelType}, n3Type=${protocol.n3Type}, templateKey=${templateKey}`
     );
   }
 
@@ -319,10 +339,21 @@ function buildOTrailerGeneratedValues() {
 }
 
 function getGeneratedValues(protocol) {
-  const category = normalizeCategory(protocol.category);
+  const category = normalizeCategory(protocol.templateCategory || protocol.category);
 
   if (category === "n3") return buildN3GeneratedValues();
-  if (category === "o") return buildOTrailerGeneratedValues();
+
+  if (
+    category === "o1" ||
+    category === "o2" ||
+    category === "o3" ||
+    category === "o4" ||
+    category === "o"
+  ) {
+    return buildOTrailerGeneratedValues();
+  }
+
+  // M1 + временно N1/N2 = как M1
   return buildM1GeneratedValues();
 }
 
@@ -553,7 +584,9 @@ router.get("/:id/pdf-template", async (req, res) => {
     const font = await pdfDoc.embedFont(fontBytes);
 
     const fuelKey = normalizeFuelType(protocol.fuelType || protocol.fuel);
-    const categoryKey = normalizeCategory(protocol.category);
+    const categoryKey = normalizeCategory(
+      protocol.templateCategory || protocol.category
+);
     const templateKey = getTemplateKey(protocol);
     const layout = protocolPdfLayouts[templateKey];
     const generated = getGeneratedValues(protocol);
@@ -646,7 +679,7 @@ router.get("/:id/pdf-template", async (req, res) => {
         drawValue(page5, p5.r4, generated.page5.r4, font);
         drawValue(page5, p5.r5, generated.page5.r5, font);
       }
-    } else if (categoryKey === "m1") {
+    } else if (categoryKey === "m1" || categoryKey === "n1" || categoryKey === "n2") {
       if (layout.page5 && pages[4]) {
         const page5 = pages[4];
         const p5 = layout.page5;
@@ -662,26 +695,31 @@ router.get("/:id/pdf-template", async (req, res) => {
     }
 
     // page 6
-    if (categoryKey === "n3") {
-      if (layout.page6 && pages[5]) {
-        const page6 = pages[5];
-        const p6 = layout.page6;
+    // page 6
+if (categoryKey === "n3") {
+  if (layout.page6 && pages[5]) {
+    const page6 = pages[5];
+    const p6 = layout.page6;
 
-        drawValue(page6, p6.r1, generated.page6.r1, font);
-        drawValue(page6, p6.r2, generated.page6.r2, font);
-      }
-    } else if (categoryKey === "m1") {
-      if (layout.page6 && pages[5]) {
-        const page6 = pages[5];
-        const p6 = layout.page6;
+    drawValue(page6, p6.r1, generated.page6.r1, font);
+    drawValue(page6, p6.r2, generated.page6.r2, font);
+  }
+} else if (categoryKey === "m1" || categoryKey === "n1" || categoryKey === "n2") {
+  if (layout.page6 && pages[5]) {
+    const page6 = pages[5];
+    const p6 = layout.page6;
 
-        drawValue(page6, p6.r1, generated.page6.r1, font);
-        drawValue(page6, p6.r2, generated.page6.r2, font);
-        drawValue(page6, p6.r3, generated.page6.r3, font);
-        drawValue(page6, p6.r4, generated.page6.r4, font);
-        drawValue(page6, p6.r5, generated.page6.r5, font);
-      }
+    drawValue(page6, p6.r1, generated.page6.r1, font);
+    drawValue(page6, p6.r2, generated.page6.r2, font);
+    drawValue(page6, p6.r3, generated.page6.r3, font);
+    drawValue(page6, p6.r4, generated.page6.r4, font);
+    drawValue(page6, p6.r5, generated.page6.r5, font);
+
+    if (categoryKey === "n2" && p6.r6) {
+      drawValue(page6, p6.r6, randInt(25, 90) / 100, font);
     }
+  }
+}
 
     // page 9 for M1
     if (categoryKey === "m1" && layout.page9 && pages[8]) {
@@ -761,6 +799,115 @@ router.get("/:id/pdf-template", async (req, res) => {
       drawValue(page13, p13.r1, generated.page13.r1, font);
       drawValue(page13, p13.r2, generated.page13.r2, font);
     }
+  
+// N1 page 9 = год + CO/дым
+if (categoryKey === "n1" && layout.page9 && pages[8]) {
+  const page9 = pages[8];
+  const p9 = layout.page9;
+
+  drawValue(page9, p9.year, protocol.year || "", font);
+  drawValue(page9, p9.yearSuffix, "г.в.", font);
+
+  if (fuelKey === "benz") {
+    drawValue(page9, p9.coMin, protocol.coMin || "", font);
+    drawValue(page9, p9.coMax, protocol.coMax || "", font);
+  }
+
+  if (fuelKey === "diesel") {
+    drawValue(page9, p9.smoke, protocol.smokeValue || "", font);
+  }
+}
+
+// N1 page 10 = габариты
+if (categoryKey === "n1" && layout.page10 && pages[9]) {
+  const page10 = pages[9];
+  const p10 = layout.page10;
+
+  const w = protocol.width ?? protocol.Width ?? "";
+  const h = protocol.height ?? protocol.Height ?? "";
+  const l = protocol.length ?? protocol.Length ?? "";
+
+  drawValue(page10, p10.length, l, font);
+  drawValue(page10, p10.width, w, font);
+  drawValue(page10, p10.height, h, font);
+}
+
+// N1 page 11 = шум
+if (categoryKey === "n1" && layout.page11 && pages[10]) {
+  const page11 = pages[10];
+  const p11 = layout.page11;
+
+  if (fuelKey !== "electro" && p11.noise) {
+    drawValue(page11, p11.noise, protocol.noiseValue || "", font);
+  }
+}    
+// N2 page 9 = год
+if (categoryKey === "n2" && layout.page9 && pages[8]) {
+  const page9 = pages[8];
+  const p9 = layout.page9;
+
+  if (p9.year) {
+    drawValue(page9, p9.year, protocol.year || "", font);
+  }
+
+  if (p9.yearSuffix) {
+    drawValue(page9, p9.yearSuffix, "г.в.", font);
+  }
+}
+// N2 page 10 = дым
+if (categoryKey === "n2" && layout.page10 && pages[9]) {
+  const page10 = pages[9];
+  const p10 = layout.page10;
+
+  if (fuelKey === "diesel" && p10.smoke) {
+    drawValue(page10, p10.smoke, protocol.smokeValue || "", font);
+  }
+
+  if (fuelKey === "benz") {
+    if (p10.coMin) drawValue(page10, p10.coMin, protocol.coMin || "", font);
+    if (p10.coMax) drawValue(page10, p10.coMax, protocol.coMax || "", font);
+  }
+}
+// N2 page 10 = CO
+if (categoryKey === "n2" && layout.page10 && pages[9]) {
+  console.log("DRAW N2 PAGE10");
+  const page10 = pages[9];
+  const p10 = layout.page10;
+
+  if (fuelKey === "benz") {
+    if (p10.coMin) drawValue(page10, p10.coMin, protocol.coMin || "", font);
+    if (p10.coMax) drawValue(page10, p10.coMax, protocol.coMax || "", font);
+  }
+}
+
+if (categoryKey === "n2" && layout.page11 && pages[10]) {
+  const page11 = pages[10];
+  const p11 = layout.page11;
+
+  const w = protocol.width ?? protocol.Width ?? "";
+  const h = protocol.height ?? protocol.Height ?? "";
+  const l = protocol.length ?? protocol.Length ?? "";
+
+
+  if (p11.length) drawValue(page11, p11.length, l, font);
+  if (p11.width) drawValue(page11, p11.width, w, font);
+  if (p11.height) drawValue(page11, p11.height, h, font);
+}
+
+if (categoryKey === "n2" && layout.page12 && pages[11]) {
+  const page12 = pages[11];
+  const p12 = layout.page12;
+
+  console.log("DRAW N2 smoke/noise:", protocol.smokeValue, protocol.noiseValue);
+
+  if (fuelKey === "diesel" && p12.smoke) {
+    drawValue(page12, p12.smoke, protocol.smokeValue || "", font);
+  }
+
+  if (p12.noise) {
+    drawValue(page12, p12.noise, protocol.noiseValue || "", font);
+  }
+}
 
     const pdfBytes = await pdfDoc.save();
 
