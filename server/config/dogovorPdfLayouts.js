@@ -5,7 +5,7 @@ export const dogovorPdfLayouts = {
 
       date1: { x: 420, y: 731, size: 8},
 
-      fio1: { x: 180, y: 687, size: 8 },
+      fio1: { x: 170, y: 687, size: 8 },
       fio2: { x: 180, y: 213, size: 8 },
       fio3: { x: 330, y: 160, size: 8 },
 

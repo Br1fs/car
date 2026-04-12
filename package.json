@@ -13,7 +13,7 @@
   "dependencies": {
     "@handsontable/react": "^16.2.0",
     "@tailwindcss/vite": "^4.1.18",
-    "axios": "^1.13.2",
+    "axios": "^1.15.0",
     "file-saver": "^2.0.5",
     "handsontable": "^16.2.0",
     "jspdf": "^2.5.1",
@@ -24,7 +24,6 @@
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.12.0",
     "xlsx": "^0.18.5"
-    
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

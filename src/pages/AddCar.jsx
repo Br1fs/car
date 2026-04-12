@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import axios from "axios";
 import "../styles/AddCar.css";
 import { API_URL } from "../config";
@@ -80,6 +80,7 @@ export default function AddCar() {
 
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
 
   const cleanInt = (v) => {
     if (v === undefined || v === null || v === "") return null;
@@ -114,6 +115,12 @@ export default function AddCar() {
 
     loadCar();
   }, [id]);
+
+  useEffect(() => {
+    if (!id && location.state?.copiedCar) {
+      setForm(location.state.copiedCar);
+    }
+  }, [id, location.state]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -172,42 +179,42 @@ export default function AddCar() {
 
   return (
     <div className="page-container">
-    <div className="add-car-page">
-      <div className="add-car-topbar">
-        <h2>{id ? "Редактирование машины" : "Добавление новой машины"}</h2>
-      </div>
+      <div className="add-car-page">
+        <div className="add-car-topbar">
+          <h2>{id ? "Редактирование машины" : "Добавление новой машины"}</h2>
+        </div>
 
-      {loading ? (
-        <div className="cars-loading">Загрузка...</div>
-      ) : (
-        <>
-          <div className="cars-form">
-            {characteristics.map((char) => (
-              <div key={char.key} className="cars-form-row">
-                <label>{char.label}</label>
-                <input
-                  name={char.key}
-                  value={form[char.key] || ""}
-                  onChange={handleChange}
-                />
-              </div>
-            ))}
-          </div>
+        {loading ? (
+          <div className="cars-loading">Загрузка...</div>
+        ) : (
+          <>
+            <div className="cars-form">
+              {characteristics.map((char) => (
+                <div key={char.key} className="cars-form-row">
+                  <label>{char.label}</label>
+                  <input
+                    name={char.key}
+                    value={form[char.key] || ""}
+                    onChange={handleChange}
+                  />
+                </div>
+              ))}
+            </div>
 
-          <div className="add-car-bottom-bar">
-            <button className="save-button" onClick={handleSave}>
-              {id ? "Сохранить изменения" : "Добавить машину"}
-            </button>
-
-            {id && (
-              <button className="delete-bottom-button" onClick={handleDelete}>
-                Удалить
+            <div className="add-car-bottom-bar">
+              <button className="save-button" onClick={handleSave}>
+                {id ? "Сохранить изменения" : "Добавить машину"}
               </button>
-            )}
-          </div>
-        </>
-      )}
-    </div>
+
+              {id && (
+                <button className="delete-bottom-button" onClick={handleDelete}>
+                  Удалить
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

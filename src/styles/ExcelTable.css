@@ -1,28 +1,17 @@
-.excel-container {
-  width: 100%;
-  height: calc(100vh - 80px);
-  overflow: auto;
+.excel-table-scroll::-webkit-scrollbar {
+  height: 18px;
 }
 
-/* Handsontable base */
-.handsontable {
-  width: 100% !important;
-  height: 100% !important;
+.excel-table-scroll::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 10px;
 }
 
-.handsontable .htCore td {
-  text-align: center;
-  font-family: Arial, sans-serif;
+.excel-table-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 10px;
 }
 
-.handsontable .htCore th {
-  background-color: #e0f7f1;
-  font-weight: bold;
-  text-align: center;
-}
-
-/* текущая ячейка */
-.handsontable .current.highlight {
-  background-color: #0475ad !important;
-  color: #fff;
+.excel-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }

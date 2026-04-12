@@ -86,7 +86,7 @@ export default function CarsManagement() {
         return;
       }
 
-      await axios.post(`${API_URL}api/cars/bulk-delete`, {
+      await axios.post(`${API_URL}/api/cars/bulk-delete`, {
         ids: selectedIds,
       });
 
@@ -96,6 +96,21 @@ export default function CarsManagement() {
       console.error(err);
       alert("Ошибка массового удаления");
     }
+  };
+
+  const handleCopy = (car) => {
+    const copiedCar = { ...car };
+
+    delete copiedCar._id;
+    delete copiedCar.createdAt;
+    delete copiedCar.updatedAt;
+    delete copiedCar.__v;
+
+    navigate("/cars/add", {
+      state: {
+        copiedCar,
+      },
+    });
   };
 
   return (
@@ -168,6 +183,15 @@ export default function CarsManagement() {
             <div>{car.year || "-"}</div>
 
             <div className="actions">
+              <button
+                type="button"
+                className="copy-btn"
+                title="Копировать"
+                onClick={() => handleCopy(car)}
+              >
+                📋
+              </button>
+
               <button
                 type="button"
                 className="open-btn"
