@@ -3,15 +3,11 @@ import axios from "axios";
 import { jsPDF } from "jspdf";
 import { buildCharacteristics } from "../utils/buildCharacteristics";
 import { loadRoboto } from "../fonts/roboto";
-// import { loadTimes } from "../fonts/times";
+// import loadTimes from "../fonts/loadTimes";
 import autoTable from "jspdf-autotable";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import formatDateRu from "../utils/formatDateRu";
 import { API_URL } from "../config";
-
-
-
-import { useParams } from "react-router-dom";
 import "../styles/CreateApplication.css";
 
 const isMCategory = (category) => {
@@ -33,6 +29,7 @@ const isOCategory = (category) => {
     c.startsWith("o4")
   );
 };
+
 const needsFuelSelect = (category) => {
   const c = String(category || "").trim().toLowerCase();
 
@@ -42,6 +39,7 @@ const needsFuelSelect = (category) => {
 
   return c.startsWith("m") || c.startsWith("n1") || c.startsWith("n2");
 };
+
 const getTemplateCategory = (category) => {
   const c = String(category || "").trim().toUpperCase();
 
@@ -54,6 +52,39 @@ const getTemplateCategory = (category) => {
 
   return c;
 };
+
+const docFieldConfigs = [
+  { key: "udostoverenie", label: "удостоверение" },
+  { key: "ownershipDoc", label: "о владении ТС" },
+  { key: "techDescription", label: "тех описание" },
+  { key: "actDoc", label: "АКТ" },
+  { key: "other1", label: "Прочее 1" },
+  { key: "other2", label: "Прочее 2" },
+  { key: "other3", label: "Прочее 3" },
+  { key: "other4", label: "Прочее 4" },
+];
+
+const getStoredFileNameSafe = (file) => {
+  if (typeof file === "object" && file !== null) {
+    return file.filename || "";
+  }
+  return file || "";
+};
+
+const getOriginalFileNameSafe = (file) => {
+  if (typeof file === "object" && file !== null) {
+    return file.originalname || file.filename || "Без имени";
+  }
+
+  if (typeof file === "string" && file.trim()) {
+    return file;
+  }
+
+  return "Без имени";
+};
+
+const isImageName = (name) => /\.(jpg|jpeg|png|webp|bmp|gif)$/i.test(name || "");
+
 export default function CreateApplication() {
   const [form, setForm] = useState({
     type: "",
@@ -72,11 +103,11 @@ export default function CreateApplication() {
     phone: "",
     email: "",
     broker: "",
-    MANUFACTURER:"",
-    legaladdressoftheMANUFACTURER:"",
-    actualaddressoftheMANUFACTURER:"",
-    ASSEMBLYPLANT:"",
-    addressoftheassemblyplant:"",
+    MANUFACTURER: "",
+    legaladdressoftheMANUFACTURER: "",
+    actualaddressoftheMANUFACTURER: "",
+    ASSEMBLYPLANT: "",
+    addressoftheassemblyplant: "",
     createdAt: "",
     seats: "",
     cab: "",
@@ -91,8 +122,8 @@ export default function CreateApplication() {
     height: "",
     base: "",
     Wheeltrack: "",
-    Descriptionhybrid:"",
-    compressionratio:"",
+    Descriptionhybrid: "",
+    compressionratio: "",
     tires: "",
     chassis: "",
     engine: "",
@@ -100,12 +131,13 @@ export default function CreateApplication() {
     cylinders: "",
     power: "",
     fuel: "",
+    fuelType: "",
     n3Type: "",
-    Ignitionsystem:"",
-    Exhaustsystem:"",
-    Powersystem:"",
-    Energystorage:"",
-    Electricmachine:"",
+    Ignitionsystem: "",
+    Exhaustsystem: "",
+    Powersystem: "",
+    Energystorage: "",
+    Electricmachine: "",
     transmission: "",
     clutch: "",
     frontSuspension: "",
@@ -116,48 +148,59 @@ export default function CreateApplication() {
     electricMotor: "",
     batterySystem: "",
     emVoltage: "",
-    emVoltage1:"",
+    emVoltage1: "",
     maxPowerEM: "",
-    maxPowerEM1:"",
-    Transmissionbox:"",
-    brakes1:"",
-    brakes2:"",
-    brakes3:""
+    maxPowerEM1: "",
+    Transmissionbox: "",
+    brakes1: "",
+    brakes2: "",
+    brakes3: "",
+    status1: "",
+    status2: "",
+    files: {},
   });
 
   const [cars, setCars] = useState([]);
-  const [files, setFiles] = useState({}); 
-  const [filesUploaded, setFilesUploaded] = useState([]); // Для отображения оригинальных имён
+  const [files, setFiles] = useState({});
+  const [filesUploaded, setFilesUploaded] = useState([]);
+  const [existingFiles, setExistingFiles] = useState([]);
 
-// для протоколов 
-const [protocolNumber, setProtocolNumber] = useState("");
-const [protocolDate, setProtocolDate] = useState("");
-const [noiseValue, setNoiseValue] = useState("");
-const [gasValue, setGasValue] = useState("");
-const [coMin, setCoMin] = useState("");
-const [coMax, setCoMax] = useState("");
-const [temperature, setTemperature] = useState("");
-const [humidity, setHumidity] = useState("");
-const [pressure, setPressure] = useState("");
-const [smokeValue, setSmokeValue] = useState("");
-const [showProtocolModal, setShowProtocolModal] = useState(false);
-const effectiveFuelType = isN3Category(form.templateCategory) ? "Дизель" : form.fuelType;
+  const [protocolNumber, setProtocolNumber] = useState("");
+  const [protocolDate, setProtocolDate] = useState("");
+  const [noiseValue, setNoiseValue] = useState("");
+  const [gasValue, setGasValue] = useState("");
+  const [coMin, setCoMin] = useState("");
+  const [coMax, setCoMax] = useState("");
+  const [temperature, setTemperature] = useState("");
+  const [humidity, setHumidity] = useState("");
+  const [pressure, setPressure] = useState("");
+  const [smokeValue, setSmokeValue] = useState("");
+  const [showProtocolModal, setShowProtocolModal] = useState(false);
 
-const protocolFuel = String(effectiveFuelType || "").trim().toLowerCase();
-const isBenzin = protocolFuel === "бензин";
-const isDiesel = protocolFuel === "дизель";
-const isElectro = protocolFuel === "электро" || protocolFuel === "электрический";
-const [showDecisionModal, setShowDecisionModal] = useState(false);
-const [decisionNumber, setDecisionNumber] = useState("");
-const [decisionDate, setDecisionDate] = useState("");
-const [showDogovorModal, setShowDogovorModal] = useState(false);
-const [dogovorNumber, setDogovorNumber] = useState("");
-const [dogovorDate, setDogovorDate] = useState("");
-const [showZayavkaModal, setShowZayavkaModal] = useState(false);
-const [zayavkaNumber, setZayavkaNumber] = useState("");
-const [zayavkaDate, setZayavkaDate] = useState("");
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [decisionNumber, setDecisionNumber] = useState("");
+  const [decisionDate, setDecisionDate] = useState("");
+
+  const [showDogovorModal, setShowDogovorModal] = useState(false);
+  const [dogovorNumber, setDogovorNumber] = useState("");
+  const [dogovorDate, setDogovorDate] = useState("");
+
+  const [showZayavkaModal, setShowZayavkaModal] = useState(false);
+  const [zayavkaNumber, setZayavkaNumber] = useState("");
+  const [zayavkaDate, setZayavkaDate] = useState("");
 
   const { id } = useParams();
+  const navigate = useNavigate();
+
+  const effectiveFuelType = isN3Category(form.templateCategory)
+    ? "Дизель"
+    : form.fuelType;
+
+  const protocolFuel = String(effectiveFuelType || "").trim().toLowerCase();
+  const isBenzin = protocolFuel === "бензин";
+  const isDiesel = protocolFuel === "дизель";
+  const isElectro =
+    protocolFuel === "электро" || protocolFuel === "электрический";
 
   useEffect(() => {
     const loadCars = async () => {
@@ -173,330 +216,160 @@ const [zayavkaDate, setZayavkaDate] = useState("");
 
   useEffect(() => {
     if (form.type && form.brand && form.model && form.year && form.volume) {
-      const selectedCar = cars.find(c =>
-        c.type === form.type &&
-        c.brand === form.brand &&
-        c.model === form.model &&
-        Number(c.year) === Number(form.year) &&
-        Number(c.volume) === Number(form.volume)
+      const selectedCar = cars.find(
+        (c) =>
+          c.type === form.type &&
+          c.brand === form.brand &&
+          c.model === form.model &&
+          Number(c.year) === Number(form.year) &&
+          Number(c.volume) === Number(form.volume)
       );
 
       if (selectedCar) {
-        setForm(prev => ({
+        setForm((prev) => ({
           ...prev,
           ...selectedCar,
           type: prev.type,
           brand: prev.brand,
           model: prev.model,
           year: prev.year,
-          volume: prev.volume
+          volume: prev.volume,
         }));
       }
     }
   }, [form.type, form.brand, form.model, form.year, form.volume, cars]);
 
   useEffect(() => {
-  if (!id) return;
+    if (!id) return;
 
-  const formatDate = (date) =>
-    date ? new Date(date).toISOString().split("T")[0] : "";
+    const formatDate = (date) =>
+      date ? new Date(date).toISOString().split("T")[0] : "";
 
-  axios.get(`${API_URL}/api/applications/${id}`)
-    .then(res => {
-      const data = res.data;
+    axios
+      .get(`${API_URL}/api/applications/${id}`)
+      .then((res) => {
+        const data = res.data;
 
-      setForm({
-  ...data,
-  templateCategory: getTemplateCategory(data.category),
-  createdAt: formatDate(data.createdAt),
-  protocolDate: formatDate(data.protocolDate),
-});
-    })
-    .catch(err => {
-      console.error(err);
-      alert("Заявка не найдена");
-    });
+        setForm({
+          ...data,
+          templateCategory: getTemplateCategory(data.category),
+          createdAt: formatDate(data.createdAt),
+          protocolDate: formatDate(data.protocolDate),
+        });
 
-}, [id]);
-//для заявок
-const handleCreateZayavka = async () => {
-  try {
-    if (!zayavkaNumber) return alert("Введите номер заявки");
-    if (!zayavkaDate) return alert("Введите дату заявки");
+        const loadedFiles = [];
 
-    const filteredCharacteristics = characteristics.filter(
-      (item) => !["fio", "iin", "address", "type"].includes(item.key)
-    );
+        Object.entries(data.files || {}).forEach(([key, arr]) => {
+          (arr || []).forEach((file, index) => {
+            loadedFiles.push({
+              key,
+              savedName: getStoredFileNameSafe(file),
+              originalName: getOriginalFileNameSafe(file),
+              isExisting: true,
+              index,
+            });
+          });
+        });
 
-    const zayavkaData = {
-      applicationId: id || null,
-      zayavkaNumber,
-      zayavkaDate,
-      brand: form.brand || "",
-      model: form.model || "",
-      vin: form.vin || "",
-      year: form.year || "",
-      typ: form.typ || "",
-      category: form.category || "",
-      manufacturer: form.MANUFACTURER || "",
-      fio: form.fio || "",
-      address: form.address || "",
-      iin: form.iin || "",
-      characteristics: filteredCharacteristics.map((item) => ({
-        key: item.key || "",
-        label: item.label || "",
-        value: form[item.key] || item.value || "",
-      })),
-    };
-
-    const res = await axios.post(`${API_URL}/api/zayavki/create`,
-      zayavkaData
-    );
-
-    const zayavkaId = res.data._id;
-
-    alert("Заявка сформирована");
-
-    window.open(
-      `${API_URL}/api/zayavki/${zayavkaId}/pdf`,
-      "_blank"
-    );
-
-    setShowZayavkaModal(false);
-  } catch (err) {
-    console.error(err);
-    alert("Ошибка создания заявки");
-  }
-};
-//для договора
-const handleCreateDogovor = async () => {
-  try {
-    if (!dogovorNumber) return alert("Введите номер");
-    if (!dogovorDate) return alert("Введите дату");
-
-    const dogovorData = {
-      applicationId: id || null,
-      dogovorNumber,
-      dogovorDate,
-      fio: form.fio || "",
-      address: form.address || "",
-      iin: form.iin || "",
-    };
-
-    const res = await axios.post(
-      `${API_URL}/api/dogovors/create`,
-      dogovorData
-    );
-
-    const dogovorId = res.data._id;
-
-    alert("Договор создан");
-
-    window.open(
-      `${API_URL}/api/dogovors/${dogovorId}/pdf-template`,
-      "_blank"
-    );
-
-    setShowDogovorModal(false);
-  } catch (err) {
-    console.error(err);
-    alert("Ошибка создания договора");
-  }
-};
-
-const handleCreateDecision = async () => {
-  try {
-    if (!decisionNumber) return alert("Введите номер решения");
-    if (!decisionDate) return alert("Введите дату решения");
-
-    const decisionData = {
-      applicationId: id || null,
-      decisionNumber,
-      decisionDate,
-      brand: form.brand || "",
-      model: form.model || "",
-      vin: form.vin || "",
-      year: form.year || "",
-      typ: form.typ || "",
-      category: form.category || "",
-    };
-
-    const res = await axios.post(
-      `${API_URL}/api/decisions/create`,
-      decisionData
-    );
-
-    const decisionId = res.data._id;
-
-    alert("Решение создано");
-
-    window.open(
-      `${API_URL}/api/decisions/${decisionId}/pdf-template`,
-      "_blank"
-    );
-
-    setShowDecisionModal(false);
-  } catch (err) {
-    console.error(err);
-    alert("Ошибка создания решения");
-  }
-};
-// protocol
-
-  
-
-const handleCreateProtocol = async () => {
-  try {
-    const realCategory = form.category;
-    const templateCategory = form.templateCategory || getTemplateCategory(form.category);
-    const finalFuelType = isN3Category(templateCategory) ? "Дизель" : form.fuelType;
-
-    if (!templateCategory) return alert("Выберите категорию");
-
-    if (!isOCategory(templateCategory) && !finalFuelType) {
-      return alert("Выберите тип топлива");
-    }
-
-    if (isN3Category(templateCategory) && !form.n3Type) {
-      return alert("Выберите тип N3: седельный или грузовой");
-    }
-
-    if (!protocolNumber) return alert("Введите номер");
-    if (!protocolDate) return alert("Введите дату");
-
-    let weather = { temp: "", humidity: "", pressure: "" };
-
-    try {
-      const w = await axios.get(`${API_URL}/api/weather`, {
-        params: { city: "Almaty", date: protocolDate }
+        setExistingFiles(loadedFiles);
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Заявка не найдена");
       });
-
-      weather = {
-        temp: String(w.data.temp ?? ""),
-        humidity: String(w.data.humidity ?? ""),
-        pressure: String(w.data.pressure ?? "")
-      };
-    } catch (e) {
-      console.warn("Weather API fail, fallback to manual");
-    }
-
-    const protocolData = {
-      applicationId: id || null,
-
-      category: realCategory,              // вот тут будет N3G
-      templateCategory: templateCategory,  // вот тут будет N3
-
-      fuelType: finalFuelType,
-      n3Type: String(form.n3Type || "").trim().toLowerCase(),
-
-      protocolNumber,
-      protocolDate,
-
-      brand: form.brand || "",
-      model: form.model || "",
-      typ: form.typ || "",
-      vin: form.vin || "",
-      EcologicalClass: form.EcologicalClass || "",
-      year: form.year || "",
-      fio: form.fio || "",
-
-      MANUFACTURER: form.MANUFACTURER || "",
-      legaladdressoftheMANUFACTURER: form.legaladdressoftheMANUFACTURER || "",
-      ASSEMBLYPLANT: form.ASSEMBLYPLANT || "",
-      addressoftheassemblyplant: form.addressoftheassemblyplant || "",
-
-      address: form.address || "",
-      extraEquipment: form.extraEquipment || "",
-      length: form.length || "",
-      width: form.width ?? form.Width ?? "",
-      height: form.height ?? form.Height ?? "",
-
-      coMin: coMin || "",
-      coMax: coMax || "",
-      noiseValue: noiseValue || "",
-      smokeValue: smokeValue || "",
-
-      temperature: String(temperature ?? "").trim() || weather.temp,
-      humidity: String(humidity ?? "").trim() || weather.humidity,
-      pressure: String(pressure ?? "").trim() || weather.pressure,
-    };
-
-    const res = await axios.post(
-      `${API_URL}/api/protocols/create`,
-      protocolData
-    );
-
-    const protocolId = res.data._id;
-    alert("Протокол создан!");
-
-    window.open(
-      `${API_URL}/api/protocols/${protocolId}/pdf-template`,
-      "_blank"
-    );
-
-    setShowProtocolModal(false);
-  } catch (err) {
-    console.error(err);
-    alert("Ошибка создания протокола");
-  }
-};
+  }, [id]);
 
   const characteristics = useMemo(() => buildCharacteristics(form), [form]);
 
   const handleChange = (e) => {
-  const { name, value } = e.target;
+    const { name, value } = e.target;
 
-  setForm((prev) => {
-    const next = {
-      ...prev,
-      [name]: value,
-    };
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        [name]: value,
+      };
 
-    if (name === "templateCategory") {
-  if (isN3Category(value)) {
-    next.fuelType = "Дизель";
-    next.n3Type = "";
-  } else if (isOCategory(value)) {
-    next.fuelType = "";
-    next.n3Type = "";
-    next.EcologicalClass = "";
-  } else if (needsFuelSelect(value)) {
-    next.fuelType = "";
-    next.n3Type = "";
-  } else {
-    next.fuelType = "";
-    next.n3Type = "";
-  }
-}
+      if (name === "templateCategory") {
+        if (isN3Category(value)) {
+          next.fuelType = "Дизель";
+          next.n3Type = "";
+        } else if (isOCategory(value)) {
+          next.fuelType = "";
+          next.n3Type = "";
+          next.EcologicalClass = "";
+        } else if (needsFuelSelect(value)) {
+          next.fuelType = "";
+          next.n3Type = "";
+        } else {
+          next.fuelType = "";
+          next.n3Type = "";
+        }
+      }
 
-    if (name === "fuelType" && isN3Category(prev.templateCategory)) {
-      next.fuelType = "Дизель";
-    }
+      if (name === "fuelType" && isN3Category(prev.templateCategory)) {
+        next.fuelType = "Дизель";
+      }
 
-    return next;
-  });
-};
+      return next;
+    });
+  };
 
   const handleFileChange = (e, key) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
 
-    setFiles(prev => ({ ...prev, [key]: file }));
-    setFilesUploaded(prev => [
+    setFiles((prev) => {
+      if (key === "photos") {
+        return {
+          ...prev,
+          [key]: [...(prev[key] || []), ...selectedFiles],
+        };
+      }
+
+      return {
+        ...prev,
+        [key]: selectedFiles[0],
+      };
+    });
+
+    setFilesUploaded((prev) => [
       ...prev,
-      { key, savedName: file.name, originalName: file.name }
+      ...selectedFiles.map((file, index) => ({
+        key,
+        savedName: file.name,
+        originalName: file.name,
+        isExisting: false,
+        index,
+      })),
     ]);
+  };
+
+  const appendFilesToFormData = (formDataToSend) => {
+    Object.entries(files).forEach(([key, fileValue]) => {
+      if (!fileValue) return;
+
+      if (Array.isArray(fileValue)) {
+        fileValue.forEach((file) => {
+          if (file) formDataToSend.append(key, file);
+        });
+      } else {
+        formDataToSend.append(key, fileValue);
+      }
+    });
   };
 
   const sendToWhatsapp = async () => {
     if (!form.phone) return alert("Укажите телефон!");
 
-    const message = characteristics.map(c => `${c.label}: ${form[c.key] || "-"}`).join("\n");
+    const message = characteristics
+      .map((c) => `${c.label}: ${form[c.key] || "-"}`)
+      .join("\n");
 
     try {
       await axios.post(`${API_URL}/api/send-whatsapp`, {
         phone: form.phone,
-        message
+        message,
       });
       alert("Сообщение отправлено!");
     } catch (err) {
@@ -506,303 +379,504 @@ const handleCreateProtocol = async () => {
   };
 
   const saveApplication = async () => {
-  try {
-    if (!id) {
-      return await createNewApplication();
+    try {
+      if (!id) {
+        return await createNewApplication();
+      }
+
+      const formDataToSend = new FormData();
+      const { _id, createdAt, updatedAt, ...safeForm } = form;
+
+      formDataToSend.append(
+        "form",
+        JSON.stringify({
+          ...safeForm,
+          protocolNumber: protocolNumber || "",
+          characteristics: buildCharacteristics(safeForm),
+          status1: safeForm.status1 || "На одобрении",
+          status2: safeForm.status2 || "",
+        })
+      );
+
+      appendFilesToFormData(formDataToSend);
+
+      await axios.put(`${API_URL}/api/applications/${id}`, formDataToSend, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      alert("Изменения сохранены");
+    } catch (err) {
+      console.error(err.response?.data || err);
+      alert("Ошибка сохранения: " + (err.response?.data?.message || err.message));
     }
+  };
 
-    const formDataToSend = new FormData();
-    const { _id, createdAt, updatedAt, ...safeForm } = form;
+  const createNewApplication = async () => {
+    try {
+      const formDataToSend = new FormData();
+      const { _id, createdAt, updatedAt, ...safeForm } = form;
 
-    formDataToSend.append(
-      "form",
-      JSON.stringify({
-        
-        ...safeForm,
-        protocolNumber: protocolNumber || "",
-        characteristics: buildCharacteristics(safeForm),
-        status1: safeForm.status1 || "На одобрении",
-        status2: safeForm.status2 || ""
-      })
-    );
+      formDataToSend.append(
+        "form",
+        JSON.stringify({
+          ...safeForm,
+          characteristics: buildCharacteristics(safeForm),
+          status1: safeForm.status1 || "На одобрении",
+          status2: safeForm.status2 || "",
+        })
+      );
 
-    Object.entries(files).forEach(([key, file]) => {
-      if (file) formDataToSend.append(key, file);
-    });
-console.log("SAVE TO APPLICATION:", {
-  ...safeForm,
-  protocolNumber,
-  // protocolDate,
-  // protocolId,
+      appendFilesToFormData(formDataToSend);
+
+      const res = await axios.post(
+        `${API_URL}/api/applications/save`,
+        formDataToSend,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+
+      alert("Новая заявка создана");
+
+      const newId = res.data?._id;
+      if (newId) {
+        navigate(`/applications/${newId}`);
+      }
+    } catch (err) {
+      console.error(err.response?.data || err);
+      alert("Ошибка создания: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleCreateZayavka = async () => {
+    try {
+      if (!zayavkaNumber) return alert("Введите номер заявки");
+      if (!zayavkaDate) return alert("Введите дату заявки");
+
+      const filteredCharacteristics = characteristics.filter(
+        (item) => !["fio", "iin", "address", "type"].includes(item.key)
+      );
+
+      const zayavkaData = {
+        applicationId: id || null,
+        zayavkaNumber,
+        zayavkaDate,
+        brand: form.brand || "",
+        model: form.model || "",
+        vin: form.vin || "",
+        year: form.year || "",
+        typ: form.typ || "",
+        category: form.category || "",
+        manufacturer: form.MANUFACTURER || "",
+        fio: form.fio || "",
+        address: form.address || "",
+        iin: form.iin || "",
+        characteristics: filteredCharacteristics.map((item) => ({
+          key: item.key || "",
+          label: item.label || "",
+          value: form[item.key] || item.value || "",
+        })),
+      };
+
+      const res = await axios.post(`${API_URL}/api/zayavki/create`, zayavkaData);
+
+      const zayavkaId = res.data._id;
+      alert("Заявка сформирована");
+
+      window.open(`${API_URL}/api/zayavki/${zayavkaId}/pdf`, "_blank");
+      setShowZayavkaModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка создания заявки");
+    }
+  };
+
+  const handleCreateDogovor = async () => {
+    try {
+      if (!dogovorNumber) return alert("Введите номер");
+      if (!dogovorDate) return alert("Введите дату");
+
+      const dogovorData = {
+        applicationId: id || null,
+        dogovorNumber,
+        dogovorDate,
+        fio: form.fio || "",
+        address: form.address || "",
+        iin: form.iin || "",
+      };
+
+      const res = await axios.post(`${API_URL}/api/dogovors/create`, dogovorData);
+      const dogovorId = res.data._id;
+
+      alert("Договор создан");
+      window.open(`${API_URL}/api/dogovors/${dogovorId}/pdf-template`, "_blank");
+      setShowDogovorModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка создания договора");
+    }
+  };
+
+  const handleCreateDecision = async () => {
+    try {
+      if (!decisionNumber) return alert("Введите номер решения");
+      if (!decisionDate) return alert("Введите дату решения");
+
+      const decisionData = {
+        applicationId: id || null,
+        decisionNumber,
+        decisionDate,
+        brand: form.brand || "",
+        model: form.model || "",
+        vin: form.vin || "",
+        year: form.year || "",
+        typ: form.typ || "",
+        category: form.category || "",
+      };
+
+      const res = await axios.post(`${API_URL}/api/decisions/create`, decisionData);
+      const decisionId = res.data._id;
+
+      alert("Решение создано");
+      window.open(`${API_URL}/api/decisions/${decisionId}/pdf-template`, "_blank");
+      setShowDecisionModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка создания решения");
+    }
+  };
+
+  const handleCreateProtocol = async () => {
+    try {
+      const realCategory = form.category;
+      const templateCategory =
+        form.templateCategory || getTemplateCategory(form.category);
+      const finalFuelType = isN3Category(templateCategory)
+        ? "Дизель"
+        : form.fuelType;
+
+      if (!templateCategory) return alert("Выберите категорию");
+
+      if (!isOCategory(templateCategory) && !finalFuelType) {
+        return alert("Выберите тип топлива");
+      }
+
+      if (isN3Category(templateCategory) && !form.n3Type) {
+        return alert("Выберите тип N3: седельный или грузовой");
+      }
+
+      if (!protocolNumber) return alert("Введите номер");
+      if (!protocolDate) return alert("Введите дату");
+
+      let weather = { temp: "", humidity: "", pressure: "" };
+
+      try {
+        const w = await axios.get(`${API_URL}/api/weather`, {
+          params: { city: "Almaty", date: protocolDate },
+        });
+
+        weather = {
+          temp: String(w.data.temp ?? ""),
+          humidity: String(w.data.humidity ?? ""),
+          pressure: String(w.data.pressure ?? ""),
+        };
+      } catch (e) {
+        console.warn("Weather API fail, fallback to manual");
+      }
+
+      const protocolData = {
+        applicationId: id || null,
+        category: realCategory,
+        templateCategory,
+        fuelType: finalFuelType,
+        n3Type: String(form.n3Type || "").trim().toLowerCase(),
+        protocolNumber,
+        protocolDate,
+        brand: form.brand || "",
+        model: form.model || "",
+        typ: form.typ || "",
+        vin: form.vin || "",
+        EcologicalClass: form.EcologicalClass || "",
+        year: form.year || "",
+        fio: form.fio || "",
+        MANUFACTURER: form.MANUFACTURER || "",
+        legaladdressoftheMANUFACTURER: form.legaladdressoftheMANUFACTURER || "",
+        ASSEMBLYPLANT: form.ASSEMBLYPLANT || "",
+        addressoftheassemblyplant: form.addressoftheassemblyplant || "",
+        address: form.address || "",
+        extraEquipment: form.extraEquipment || "",
+        length: form.length || "",
+        width: form.width ?? form.Width ?? "",
+        height: form.height ?? form.Height ?? "",
+        coMin: coMin || "",
+        coMax: coMax || "",
+        noiseValue: noiseValue || "",
+        smokeValue: smokeValue || "",
+        temperature: String(temperature ?? "").trim() || weather.temp,
+        humidity: String(humidity ?? "").trim() || weather.humidity,
+        pressure: String(pressure ?? "").trim() || weather.pressure,
+      };
+
+      const res = await axios.post(`${API_URL}/api/protocols/create`, protocolData);
+      const protocolId = res.data._id;
+
+      alert("Протокол создан!");
+      window.open(`${API_URL}/api/protocols/${protocolId}/pdf-template`, "_blank");
+      setShowProtocolModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка создания протокола");
+    }
+  };
+
+  const generateApplicationPdf = async () => {
+    try {
+      const doc = new jsPDF("p", "mm", "a4");
+
+      await loadRoboto(doc);
+doc.setFont("Roboto", "normal");
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const left = 15;
+      const right = 15;
+      const contentWidth = pageWidth - left - right;
+
+      let y = 15;
+
+      const applicationNumber = id ? String(id).slice(-6) : "-";
+      const applicationDate = form.createdAt || new Date().toISOString().split("T")[0];
+
+      doc.setFont("Roboto", "bold");
+      doc.setFontSize(14);
+      doc.text(`ЗАЯВКА № ${applicationNumber}`, pageWidth / 2, y, {
+        align: "center",
+      });
+
+      y += 7;
+
+      doc.setFont("Roboto", "normal");
+      doc.setFontSize(11);
+      doc.text(formatDateRu(applicationDate), pageWidth / 2, y, {
+        align: "center",
+      });
+
+      y += 10;
+
+      doc.setFont("Roboto", "bold");
+      doc.setFontSize(11);
+      doc.text(
+        "На проведение работ по оценке соответствия транспортного средства",
+        left,
+        y
+      );
+      y += 6;
+      doc.text("требованиям ТР ТС 018/2011 в форме СБКТС", left, y);
+
+      y += 10;
+
+      const topRows = [
+        ["Модель автомобиля", form.model || "-"],
+        ["Идентификационный номер (VIN)", form.vin || "-"],
+        ["Название изготовителя", form.MANUFACTURER || "-"],
+        ["Ф.И.О. заявителя", form.fio || "-"],
+        ["Адрес заявителя", form.address || "-"],
+        ["ИИН", form.iin || "-"],
+      ];
+
+      autoTable(doc, {
+        startY: y,
+        theme: "grid",
+        body: topRows,
+        styles: {
+          font: "Roboto",
+          fontSize: 10,
+          cellPadding: 3,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.25,
+          textColor: [0, 0, 0],
+          overflow: "linebreak",
+          valign: "top",
+        },
+        columnStyles: {
+          0: { cellWidth: 68, fontStyle: "bold" },
+          1: { cellWidth: contentWidth - 68 },
+        },
+        margin: { left, right },
+      });
+
+      y = doc.lastAutoTable.finalY + 8;
+
+      doc.setFont("Roboto", "bold");
+      doc.setFontSize(13);
+      doc.text(
+        "ОБЩИЕ ХАРАКТЕРИСТИКИ ТРАНСПОРТНОГО СРЕДСТВА",
+        pageWidth / 2,
+        y,
+        { align: "center" }
+      );
+
+      y += 6;
+
+      const filteredCharacteristics = characteristics.filter(
+        (item) => !["fio", "iin", "address"].includes(item.key)
+      );
+
+      const tableData = filteredCharacteristics.map((item) => [
+        item.label || "",
+        String(form[item.key] || item.value || "-"),
+      ]);
+
+      autoTable(doc, {
+        startY: y,
+        theme: "grid",
+        head: [["Параметр", "Значение"]],
+        body: tableData,
+        showHead: "firstPage",
+        rowPageBreak: "avoid",
+        styles: {
+          font: "Roboto",
+          fontSize: 10,
+          cellPadding: 3,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.25,
+          textColor: [0, 0, 0],
+          overflow: "linebreak",
+          valign: "top",
+        },
+        headStyles: {
+          font: "Roboto",
+          fontStyle: "bold",
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          lineColor: [0, 0, 0],
+          lineWidth: 0.25,
+        },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 100 },
+        },
+        margin: { top: 20, left, right, bottom: 15 },
+      });
+
+      doc.save(`zayavka_${form.vin || "no_vin"}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка генерации заявки");
+    }
+  };
+
+  const generatePDF = async () => {
+    try {
+      const doc = new jsPDF("p", "mm", "a4");
+
+      await loadRoboto(doc);
+doc.setFont("Roboto", "normal");
+
+      doc.setFontSize(16);
+      doc.text("ОБЩИЕ ХАРАКТИРИСТИКИ ТРАНСПОРТНОГО СРЕДСТВА", 105, 15, {
+        align: "center",
+      });
+
+      const tableData = characteristics.map((item) => [
+        item.label || "",
+        String(form[item.key] || "-"),
+      ]);
+
+    autoTable(doc, {
+  startY: 25,
+  theme: "grid",
+  head: [["Параметр", "Значение"]],
+  body: tableData,
+  showHead: "firstPage",
+  rowPageBreak: "avoid",
+
+  styles: {
+    font: "Roboto",
+    fontSize: 10,
+    cellPadding: 4,
+    lineColor: [0, 0, 0],
+    lineWidth: 0.25,
+    textColor: [0, 0, 0],
+    overflow: "linebreak",
+    valign: "top",
+    minCellHeight: 8,
+  },
+
+  headStyles: {
+    font: "Roboto",
+    fontStyle: "bold",
+    fillColor: [220, 235, 255], // голубой
+    textColor: [0, 0, 0],
+  },
+
+  columnStyles: {
+    0: { cellWidth: 72 },
+    1: { cellWidth: 108 },
+  },
+
+  margin: { top: 20, left: 15, right: 15, bottom: 15 },
 });
-    await axios.put(
-      `${API_URL}/api/applications/${id}`,
-      formDataToSend,
-      { headers: { "Content-Type": "multipart/form-data" } }
-    );
 
-    alert("Изменения сохранены");
-  } catch (err) {
-    console.error(err.response?.data || err);
-    alert("Ошибка сохранения: " + (err.response?.data?.message || err.message));
-  }
-};
-const createNewApplication = async () => {
-  try {
-    const formDataToSend = new FormData();
-    const { _id, createdAt, updatedAt, ...safeForm } = form;
-
-    formDataToSend.append(
-      "form",
-      JSON.stringify({
-        ...safeForm,
-        characteristics: buildCharacteristics(safeForm),
-        status1: safeForm.status1 || "На одобрении",
-        status2: safeForm.status2 || ""
-      })
-    );
-
-    Object.entries(files).forEach(([key, file]) => {
-      if (file) formDataToSend.append(key, file);
-    });
-
-    const res = await axios.post(
-      `${API_URL}/api/applications/save`,
-      formDataToSend,
-      { headers: { "Content-Type": "multipart/form-data" } }
-    );
-
-    alert("Новая заявка создана");
-
-    const newId = res.data?._id;
-    if (newId) {
-      navigate(`/applications/${newId}`);
+      doc.save(`${form.fio || "application"}_${form.vin || "no_vin"}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Ошибка PDF — смотри console");
     }
-  } catch (err) {
-    console.error(err.response?.data || err);
-    alert("Ошибка создания: " + (err.response?.data?.message || err.message));
-  }
-};
+  };
 
-// для заявки
-const generateApplicationPdf = async () => {
-  try {
-    const doc = new jsPDF("p", "mm", "a4");
+  const existingDocsByKey = {};
+  docFieldConfigs.forEach((item) => {
+    existingDocsByKey[item.key] = [];
+  });
 
-    await loadRoboto(doc);
-    doc.setFont("Roboto", "normal");
+  existingFiles.forEach((file) => {
+    if (file.key !== "photos" && existingDocsByKey[file.key]) {
+      existingDocsByKey[file.key].push(file);
+    }
+  });
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const left = 15;
-    const right = 15;
-    const contentWidth = pageWidth - left - right;
+  const uploadedDocsByKey = {};
+  docFieldConfigs.forEach((item) => {
+    uploadedDocsByKey[item.key] = [];
+  });
 
-    let y = 15;
+  filesUploaded.forEach((file) => {
+    if (file.key !== "photos" && uploadedDocsByKey[file.key]) {
+      uploadedDocsByKey[file.key].push(file);
+    }
+  });
 
-    const applicationNumber = id ? String(id).slice(-6) : "-";
-    const applicationDate = form.createdAt || new Date().toISOString().split("T")[0];
+  const existingPhotos = existingFiles.filter(
+    (file) => file.key === "photos" || isImageName(file.originalName)
+  );
 
-    // ===== Заголовок =====
-    doc.setFont("Roboto", "bold");
-    doc.setFontSize(14);
-    doc.text(`ЗАЯВКА № ${applicationNumber}`, pageWidth / 2, y, {
-      align: "center",
-    });
+  const uploadedPhotos = filesUploaded.filter(
+    (file) => file.key === "photos" || isImageName(file.originalName)
+  );
 
-    y += 7;
-
-    doc.setFont("Roboto", "normal");
-    doc.setFontSize(11);
-    doc.text(formatDateRu(applicationDate), pageWidth / 2, y, {
-      align: "center",
-    });
-
-    y += 10;
-
-    doc.setFont("Roboto", "bold");
-    doc.setFontSize(11);
-    doc.text(
-      "На проведение работ по оценке соответствия транспортного средства",
-      left,
-      y
-    );
-    y += 6;
-    doc.text(
-      "требованиям ТР ТС 018/2011 в форме СБКТС",
-      left,
-      y
-    );
-
-    y += 10;
-
-    // ===== Верхний блок с данными =====
-    const topRows = [
-      ["Модель автомобиля", form.model || "-"],
-      ["Идентификационный номер (VIN)", form.vin || "-"],
-      ["Название изготовителя", form.MANUFACTURER || "-"],
-      ["Ф.И.О. заявителя", form.fio || "-"],
-      ["Адрес заявителя", form.address || "-"],
-      ["ИИН", form.iin || "-"],
-    ];
-
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      body: topRows,
-      styles: {
-        font: "Roboto",
-        fontSize: 10,
-        cellPadding: 3,
-        lineColor: [0, 0, 0],
-        lineWidth: 0.25,
-        textColor: [0, 0, 0],
-        overflow: "linebreak",
-        valign: "top",
-      },
-      columnStyles: {
-        0: { cellWidth: 68, fontStyle: "bold" },
-        1: { cellWidth: contentWidth - 68 },
-      },
-      margin: { left, right },
-    });
-
-    y = doc.lastAutoTable.finalY + 8;
-
-    // ===== Заголовок характеристик =====
-    doc.setFont("Roboto", "bold");
-    doc.setFontSize(13);
-    doc.text(
-      "ОБЩИЕ ХАРАКТЕРИСТИКИ ТРАНСПОРТНОГО СРЕДСТВА",
-      pageWidth / 2,
-      y,
-      { align: "center" }
-    );
-
-    y += 6;
-
-    // ===== Убираем из таблицы верхние поля =====
-    const filteredCharacteristics = characteristics.filter(
-      (item) => !["fio", "iin", "address"].includes(item.key)
-    );
-
-    const tableData = filteredCharacteristics.map((item) => [
-      item.label || "",
-      String(form[item.key] || item.value || "-"),
-    ]);
-
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      head: [["Параметр", "Значение"]],
-      body: tableData,
-      showHead: "firstPage",
-      rowPageBreak: "avoid",
-      styles: {
-        font: "Roboto",
-        fontSize: 10,
-        cellPadding: 3,
-        lineColor: [0, 0, 0],
-        lineWidth: 0.25,
-        textColor: [0, 0, 0],
-        overflow: "linebreak",
-        valign: "top",
-      },
-      headStyles: {
-        font: "Roboto",
-        fontStyle: "bold",
-        fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        lineColor: [0, 0, 0],
-        lineWidth: 0.25,
-      },
-      columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 100 },
-      },
-      margin: { top: 20, left, right, bottom: 15 },
-    });
-
-    doc.save(`zayavka_${form.vin || "no_vin"}.pdf`);
-  } catch (err) {
-    console.error(err);
-    alert("Ошибка генерации заявки");
-  }
-};
-// для макета
-const generatePDF = async () => {
-  try {
-    const doc = new jsPDF("p", "mm", "a4");
-
-    await loadRoboto(doc);
-    doc.setFont("Roboto", "normal");
-
-    doc.setFontSize(16);
-    doc.text("ОБЩИЕ ХАРАКТЕРИСТИКИ ТРАНСПОРТНОГО СРЕДСТВА", 105, 15, {
-      align: "center",
-    });
-
-    const tableData = characteristics.map((item) => [
-      item.label || "",
-      String(form[item.key] || "-"),
-    ]);
-
-    autoTable(doc, {
-      startY: 25,
-      theme: "grid",
-      head: [["Параметр", "Значение"]],
-      body: tableData,
-
-      showHead: "firstPage",     // шапка только на первой странице
-      rowPageBreak: "avoid",     // не рвать одну строку на две страницы
-
-      styles: {
-        font: "Roboto",
-        fontSize: 10,
-        cellPadding: 3,
-        lineColor: [0, 0, 0],
-        lineWidth: 0.25,
-        textColor: [0, 0, 0],
-        overflow: "linebreak",
-        valign: "top",
-      },
-
-      headStyles: {
-        font: "Roboto",
-        fontStyle: "bold",
-        fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        lineColor: [0, 0, 0],
-        lineWidth: 0.25,
-      },
-
-      bodyStyles: {
-        font: "Roboto",
-        textColor: [0, 0, 0],
-        valign: "top",
-      },
-
-      columnStyles: {
-        0: { cellWidth: 80 },   // параметр
-        1: { cellWidth: 100 },  // значение
-      },
-
-      margin: { top: 20, left: 15, right: 15, bottom: 15 },
-    });
-
-    doc.save(`${form.fio || "application"}_${form.vin || "no_vin"}.pdf`);
-  } catch (err) {
-    console.error(err);
-    alert("Ошибка PDF — смотри console");
-  }
-};
-const navigate = useNavigate();
+  const isIinValid = /^\d{12}$/.test(form.iin || "");
 
   return (
     <div className="app-form">
       <div className="left">
         <h2>Исходные данные</h2>
         <input name="fio" placeholder="ФИО" value={form.fio} onChange={handleChange} />
-        <input name="iin" placeholder="ИИН" value={form.iin} onChange={handleChange} />
+        <input
+  name="iin"
+  placeholder="ИИН"
+  value={form.iin}
+  onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 12);
+    setForm((prev) => ({ ...prev, iin: value }));
+  }}
+  style={{
+    border: form.iin && !isIinValid ? "2px solid red" : "",
+    backgroundColor: form.iin && !isIinValid ? "#fff5f5" : "",
+  }}
+/>
+{form.iin && !isIinValid && (
+  <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+    ИИН должен содержать ровно 12 цифр
+  </div>
+)}
         <input name="address" placeholder="Адрес" value={form.address} onChange={handleChange} />
         <div style={{ display: "flex", alignItems: "center" }}>
           <input name="phone" placeholder="Телефон" value={form.phone} onChange={handleChange} />
@@ -829,384 +903,462 @@ const navigate = useNavigate();
 
         <select name="type" value={form.type} onChange={handleChange}>
           <option value="">Выберите тип автомобиля</option>
-          {[...new Set(cars.map(c=>c.type))].map((t,i)=><option key={i} value={t}>{t}</option>)}
+          {[...new Set(cars.map((c) => c.type))].map((t, i) => (
+            <option key={i} value={t}>{t}</option>
+          ))}
         </select>
 
         <select name="brand" value={form.brand} onChange={handleChange}>
           <option value="">Выберите марку</option>
-          {[...new Set(cars.filter(c=>c.type===form.type).map(c=>c.brand))].map((b,i)=><option key={i} value={b}>{b}</option>)}
+          {[...new Set(cars.filter((c) => c.type === form.type).map((c) => c.brand))].map((b, i) => (
+            <option key={i} value={b}>{b}</option>
+          ))}
         </select>
 
         <select name="model" value={form.model} onChange={handleChange}>
           <option value="">Выберите модель</option>
-          {[...new Set(cars.filter(c=>c.type===form.type && c.brand===form.brand).map(c=>c.model))].map((m,i)=><option key={i} value={m}>{m}</option>)}
+          {[...new Set(cars.filter((c) => c.type === form.type && c.brand === form.brand).map((c) => c.model))].map((m, i) => (
+            <option key={i} value={m}>{m}</option>
+          ))}
         </select>
 
         <select name="year" value={form.year} onChange={handleChange}>
           <option value="">Выберите год</option>
-          {[...new Set(cars.filter(c=>c.type===form.type && c.brand===form.brand && c.model===form.model).map(c=>c.year))].map((y,i)=><option key={i} value={y}>{y}</option>)}
+          {[...new Set(cars.filter((c) => c.type === form.type && c.brand === form.brand && c.model === form.model).map((c) => c.year))].map((y, i) => (
+            <option key={i} value={y}>{y}</option>
+          ))}
         </select>
 
         <select name="volume" value={form.volume} onChange={handleChange}>
           <option value="">Выберите объём</option>
-          {[...new Set(cars.filter(c=>c.type===form.type && c.brand===form.brand && c.model===form.model && c.year===Number(form.year)).map(c=>c.volume))].map((v,i)=><option key={i} value={v}>{v}</option>)}
+          {[...new Set(cars.filter((c) => c.type === form.type && c.brand === form.brand && c.model === form.model && c.year === Number(form.year)).map((c) => c.volume))].map((v, i) => (
+            <option key={i} value={v}>{v}</option>
+          ))}
         </select>
 
         <h3>Документы</h3>
-        {["удостоверение","о владении ТС","тех описание","АКТ","Прочее","Прочее","Прочее","Прочее"].map((label,i)=>(
-          <div key={i}>
-            <label>{label}:</label>
-            <input type="file" onChange={e=>handleFileChange(e,label)} />
+
+        {docFieldConfigs.map((item) => (
+          <div key={item.key} style={{ marginBottom: "14px" }}>
+            <label>{item.label}:</label>
+            <input
+              type="file"
+              onChange={(e) => handleFileChange(e, item.key)}
+            />
+
+            {existingDocsByKey[item.key]?.length > 0 && (
+              <div style={{ marginTop: "6px", paddingLeft: "4px" }}>
+                {existingDocsByKey[item.key].map((file) => (
+                  <div key={`${file.key}-${file.index}`}>
+                    {file.savedName ? (
+                      <a
+                        href={`${API_URL}/uploads/${file.savedName}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {file.originalName}
+                      </a>
+                    ) : (
+                      <span>{file.originalName}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {uploadedDocsByKey[item.key]?.length > 0 && (
+              <div style={{ marginTop: "6px", paddingLeft: "4px" }}>
+                {uploadedDocsByKey[item.key].map((file, index) => (
+                  <div key={`${file.key}-new-${index}`}>
+                    {file.originalName}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 
-        {filesUploaded.map(file => (
-          <div key={file.savedName}>
-            {file.originalName} {/* показываем оригинальное имя */}
-          </div>
-        ))}
+        <div style={{ marginTop: "18px" }}>
+          <h3>Фотографии</h3>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => handleFileChange(e, "photos")}
+          />
 
-        {/* <button onClick={saveApplication} className="save-btn">Создать заявку</button> */}
+          {existingPhotos.length > 0 && (
+            <div style={{ marginTop: "10px" }}>
+              {existingPhotos.map((file) => (
+                <div key={`photo-old-${file.index}`}>
+                  {file.savedName ? (
+                    <a
+                      href={`${API_URL}/uploads/${file.savedName}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {file.originalName}
+                    </a>
+                  ) : (
+                    <span>{file.originalName}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {uploadedPhotos.length > 0 && (
+            <div style={{ marginTop: "10px" }}>
+              {uploadedPhotos.map((file, index) => (
+                <div key={`photo-new-${index}`}>
+                  {file.originalName}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="right">
         <h2>ОБЩИЕ ХАРАКТИРИСТИКИ ТРАНСПОРТНОГО СРЕДСТВА</h2>
         <div className="characteristics-table full-width-table">
-  {characteristics.map((item, index) => (
-    <div className="table-row" key={index}>
-      <div className="table-cell label">{item.label}</div>
-      <div className="table-cell value">
-        <textarea
-          value={item.value || ""}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, [item.key]: e.target.value }))
-          }
-          rows={2}
-        />
-      </div>
-    </div>
-  ))}
-  
-</div>
-<button className="back-btn" onClick={() => navigate(-1)}>
-  Назад
-</button>
+          {characteristics.map((item, index) => (
+            <div className="table-row" key={index}>
+              <div className="table-cell label">{item.label}</div>
+              <div className="table-cell value">
+                <textarea
+                  value={item.value || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, [item.key]: e.target.value }))
+                  }
+                  rows={2}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button className="back-btn" onClick={() => navigate(-1)}>
+          Назад
+        </button>
 
         <div className="pdf-buttons">
           <button className="pdf-btn" onClick={createNewApplication}>
-    Создать заявку
-  </button>
-      
+            Создать заявку
+          </button>
+
           <button className="pdf-btn" onClick={generatePDF}>
-  Сформировать МАКЕТ
-</button>
+            Сформировать МАКЕТ
+          </button>
 
-          <button
-  className="pdf-btn"
-  onClick={() => setShowProtocolModal(true)}
->
-  Сформировать ПРОТОКОЛ
-</button>
+          <button className="pdf-btn" onClick={() => setShowProtocolModal(true)}>
+            Сформировать ПРОТОКОЛ
+          </button>
 
-{showProtocolModal && (
-  <div className="modal-overlay">
-    <div className="modal">
+          {showProtocolModal && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <h3>Создание протокола</h3>
 
-      <h3>Создание протокола</h3>
+                <div className="form-group">
+                  <label>Категория</label>
+                  <select
+                    name="templateCategory"
+                    value={form.templateCategory}
+                    onChange={handleChange}
+                  >
+                    <option value="">Выберите категорию</option>
+                    <option value="M1">M1</option>
+                    <option value="M2">M2</option>
+                    <option value="M3">M3</option>
+                    <option value="N1">N1</option>
+                    <option value="N2">N2</option>
+                    <option value="N3">N3</option>
+                    <option value="O1">O1</option>
+                    <option value="O2">O2</option>
+                    <option value="O3">O3</option>
+                    <option value="O4">O4</option>
+                  </select>
+                </div>
 
-<div className="form-group">
-  <label>Категория</label>
-  <select
-  name="templateCategory"
-  value={form.templateCategory}
-  onChange={handleChange}
->
-  <option value="">Выберите категорию</option>
-  <option value="M1">M1</option>
-  <option value="M2">M2</option>
-  <option value="M3">M3</option>
-  <option value="N1">N1</option>
-  <option value="N2">N2</option>
-  <option value="N3">N3</option>
-  <option value="O1">O1</option>
-  <option value="O2">O2</option>
-  <option value="O3">O3</option>
-  <option value="O4">O4</option>
-</select>
-</div>
+                {needsFuelSelect(form.templateCategory) && (
+                  <div className="form-group">
+                    <label>Тип топлива</label>
+                    <select
+                      name="fuelType"
+                      value={form.fuelType}
+                      onChange={handleChange}
+                    >
+                      <option value="">Выберите топливо</option>
+                      <option value="Бензин">Бензин</option>
+                      <option value="Дизель">Дизель</option>
+                      <option value="Электро">Электро</option>
+                    </select>
+                  </div>
+                )}
 
-{needsFuelSelect(form.templateCategory) && (
-  <div className="form-group">
-    <label>Тип топлива</label>
-    <select
-      name="fuelType"
-      value={form.fuelType}
-      onChange={handleChange}
-    >
-      <option value="">Выберите топливо</option>
-      <option value="Бензин">Бензин</option>
-      <option value="Дизель">Дизель</option>
-      <option value="Электро">Электро</option>
-    </select>
-  </div>
-)}
+                {isN3Category(form.templateCategory) && (
+                  <>
+                    <div className="form-group">
+                      <label>Тип топлива</label>
+                      <select
+                        name="fuelType"
+                        value="Дизель"
+                        onChange={handleChange}
+                        disabled
+                      >
+                        <option value="Дизель">Дизель</option>
+                      </select>
+                    </div>
 
-{isN3Category(form.templateCategory) && (
-  <>
-    <div className="form-group">
-      <label>Тип топлива</label>
-      <select
-        name="fuelType"
-        value="Дизель"
-        onChange={handleChange}
-        disabled
-      >
-        <option value="Дизель">Дизель</option>
-      </select>
-    </div>
+                    <div className="form-group">
+                      <label>Тип N3</label>
+                      <select
+                        name="n3Type"
+                        value={form.n3Type}
+                        onChange={handleChange}
+                      >
+                        <option value="">Выберите тип</option>
+                        <option value="sedelnyi">Седельный</option>
+                        <option value="gruzovoi">Грузовой</option>
+                      </select>
+                    </div>
+                  </>
+                )}
 
-    <div className="form-group">
-      <label>Тип N3</label>
-      <select
-        name="n3Type"
-        value={form.n3Type}
-        onChange={handleChange}
-      >
-        <option value="">Выберите тип</option>
-        <option value="sedelnyi">Седельный</option>
-        <option value="gruzovoi">Грузовой</option>
-      </select>
-    </div>
-  </>
-)}
+                {!isOCategory(form.templateCategory) && (
+                  <div className="form-group">
+                    <label>Экологический класс</label>
+                    <input
+                      type="text"
+                      name="EcologicalClass"
+                      value={form.EcologicalClass}
+                      onChange={handleChange}
+                    />
+                  </div>
+                )}
 
-{!isOCategory(form.templateCategory) && (
-  <div className="form-group">
-    <label>Экологический класс</label>
-    <input
-      type="text"
-      name="EcologicalClass"
-      value={form.EcologicalClass}
-      onChange={handleChange}
-    />
-  </div>
-)}
+                <label>Номер протокола</label>
+                <input
+                  value={protocolNumber}
+                  onChange={(e) => setProtocolNumber(e.target.value)}
+                />
 
-<label>Номер протокола</label>
-<input
-  value={protocolNumber}
-  onChange={e => setProtocolNumber(e.target.value)}
-/>
+                <label>Дата протокола</label>
+                <input
+                  type="date"
+                  value={protocolDate}
+                  onChange={(e) => setProtocolDate(e.target.value)}
+                />
 
-<label>Дата протокола</label>
-<input
-  type="date"
-  value={protocolDate}
-  onChange={e => setProtocolDate(e.target.value)}
-/>
+                {isBenzin && (
+                  <>
+                    <label>CO (min)</label>
+                    <input value={coMin} onChange={(e) => setCoMin(e.target.value)} />
 
-{isBenzin && (
-  <>
-    <label>CO (min)</label>
-    <input value={coMin} onChange={e => setCoMin(e.target.value)} />
+                    <label>CO (max)</label>
+                    <input value={coMax} onChange={(e) => setCoMax(e.target.value)} />
 
-    <label>CO (max)</label>
-    <input value={coMax} onChange={e => setCoMax(e.target.value)} />
+                    <label>Шум</label>
+                    <input
+                      value={noiseValue}
+                      onChange={(e) => setNoiseValue(e.target.value)}
+                    />
+                  </>
+                )}
 
-    <label>Шум</label>
-    <input value={noiseValue} onChange={e => setNoiseValue(e.target.value)} />
-  </>
-)}
+                {isDiesel && (
+                  <>
+                    <label>Дым</label>
+                    <input
+                      value={smokeValue}
+                      onChange={(e) => setSmokeValue(e.target.value)}
+                    />
 
-{isDiesel && (
-  <>
-    <label>Дым</label>
-    <input value={smokeValue} onChange={e => setSmokeValue(e.target.value)} />
+                    <label>Шум</label>
+                    <input
+                      value={noiseValue}
+                      onChange={(e) => setNoiseValue(e.target.value)}
+                    />
+                  </>
+                )}
 
-    <label>Шум</label>
-    <input value={noiseValue} onChange={e => setNoiseValue(e.target.value)} />
-  </>
-)}
+                <label>Температура (°C)</label>
+                <input
+                  value={temperature}
+                  onChange={(e) => setTemperature(e.target.value)}
+                />
 
-<label>Температура (°C)</label>
-<input
-  value={temperature}
-  onChange={e => setTemperature(e.target.value)}
-/>
+                <label>Влажность (%)</label>
+                <input
+                  value={humidity}
+                  onChange={(e) => setHumidity(e.target.value)}
+                />
 
-<label>Влажность (%)</label>
-<input
-  value={humidity}
-  onChange={e => setHumidity(e.target.value)}
-/>
+                <label>Давление (мм рт. ст.)</label>
+                <input
+                  value={pressure}
+                  onChange={(e) => setPressure(e.target.value)}
+                />
 
-<label>Давление (мм рт. ст.)</label>
-<input
-  value={pressure}
-  onChange={e => setPressure(e.target.value)}
-/>
+                <button
+                  className="btn btn-gray"
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await axios.get(`${API_URL}/api/weather`, {
+                        params: { city: "Almaty", date: protocolDate },
+                      });
 
-<button className="btn btn-gray"
-  type="button"
-  onClick={async () => {
-    try {
-      const res = await axios.get(`${API_URL}/api/weather`, {
-        params: { city: "Almaty", date: protocolDate }
-      });
+                      setTemperature(res.data.temp || "");
+                      setHumidity(res.data.humidity || "");
+                      setPressure(res.data.pressure || "");
+                    } catch (e) {
+                      alert("Не удалось получить погоду");
+                    }
+                  }}
+                >
+                  Подтянуть из интернета
+                </button>
 
-      setTemperature(res.data.temp || "");
-      setHumidity(res.data.humidity || "");
-      setPressure(res.data.pressure || "");
-    } catch (e) {
-      alert("Не удалось получить погоду");
-    }
-  }}
->
-  Подтянуть из интернета
-</button>
+                <div style={{ marginTop: 20 }}>
+                  <button className="btn btn-blue" onClick={handleCreateProtocol}>
+                    Создать
+                  </button>
 
-<div style={{ marginTop: 20 }}>
-  <button className="btn btn-blue" onClick={handleCreateProtocol}>
-    Создать
-  </button>
-  
+                  <button
+                    className="btn btn-red"
+                    onClick={() => setShowProtocolModal(false)}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-        <button className="btn btn-red" onClick={() => setShowProtocolModal(false)}>
-          Отмена
-        </button>
-      </div>
+          <button className="pdf-btn" onClick={() => setShowZayavkaModal(true)}>
+            Сформировать заявку
+          </button>
 
-    </div>
-  </div>
-)}
+          {showZayavkaModal && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <h3>Создание заявки</h3>
 
+                <label>Номер заявки</label>
+                <input
+                  value={zayavkaNumber}
+                  onChange={(e) => setZayavkaNumber(e.target.value)}
+                />
 
-          <button
-  className="pdf-btn"
-  onClick={() => setShowZayavkaModal(true)}
->
-  Сформировать заявку
-</button>
-{showZayavkaModal && (
-  <div className="modal-overlay">
-    <div className="modal">
-      <h3>Создание заявки</h3>
+                <label>Дата заявки</label>
+                <input
+                  type="date"
+                  value={zayavkaDate}
+                  onChange={(e) => setZayavkaDate(e.target.value)}
+                />
 
-      <label>Номер заявки</label>
-      <input
-        value={zayavkaNumber}
-        onChange={(e) => setZayavkaNumber(e.target.value)}
-      />
+                <div style={{ marginTop: 20 }}>
+                  <button className="btn btn-blue" onClick={handleCreateZayavka}>
+                    Создать
+                  </button>
 
-      <label>Дата заявки</label>
-      <input
-        type="date"
-        value={zayavkaDate}
-        onChange={(e) => setZayavkaDate(e.target.value)}
-      />
+                  <button
+                    className="btn btn-red"
+                    onClick={() => setShowZayavkaModal(false)}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-      <div style={{ marginTop: 20 }}>
-        <button className="btn btn-blue" onClick={handleCreateZayavka}>
-          Создать
-        </button>
+          <button className="pdf-btn" onClick={() => setShowDecisionModal(true)}>
+            Сформировать решение
+          </button>
 
-        <button
-          className="btn btn-red"
-          onClick={() => setShowZayavkaModal(false)}
-        >
-          Отмена
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-          <button
-  className="pdf-btn"
-  onClick={() => setShowDecisionModal(true)}
->
-  Сформировать решение
-</button>
-{showDecisionModal && (
-  <div className="modal-overlay">
-    <div className="modal">
-      <h3>Создание решения</h3>
+          {showDecisionModal && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <h3>Создание решения</h3>
 
-      <label>Номер решения</label>
-      <input
-        value={decisionNumber}
-        onChange={(e) => setDecisionNumber(e.target.value)}
-      />
+                <label>Номер решения</label>
+                <input
+                  value={decisionNumber}
+                  onChange={(e) => setDecisionNumber(e.target.value)}
+                />
 
-      <label>Дата решения</label>
-      <input
-        type="date"
-        value={decisionDate}
-        onChange={(e) => setDecisionDate(e.target.value)}
-      />
+                <label>Дата решения</label>
+                <input
+                  type="date"
+                  value={decisionDate}
+                  onChange={(e) => setDecisionDate(e.target.value)}
+                />
 
-      <div style={{ marginTop: 20 }}>
-        <button className="btn btn-blue" onClick={handleCreateDecision}>
-          Создать
-        </button>
+                <div style={{ marginTop: 20 }}>
+                  <button className="btn btn-blue" onClick={handleCreateDecision}>
+                    Создать
+                  </button>
 
-        <button
-          className="btn btn-red"
-          onClick={() => setShowDecisionModal(false)}
-        >
-          Отмена
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-<button
-  className="pdf-btn"
-  onClick={() => setShowDogovorModal(true)}
->
-  Сформировать договор
-</button>
-{showDogovorModal && (
-  <div className="modal-overlay">
-    <div className="modal">
-      <h3>Создание договора</h3>
+                  <button
+                    className="btn btn-red"
+                    onClick={() => setShowDecisionModal(false)}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-      <label>Номер договора</label>
-      <input
-        value={dogovorNumber}
-        onChange={(e) => setDogovorNumber(e.target.value)}
-      />
+          <button className="pdf-btn" onClick={() => setShowDogovorModal(true)}>
+            Сформировать договор
+          </button>
 
-      <label>Дата договора</label>
-      <input
-        type="date"
-        value={dogovorDate}
-        onChange={(e) => setDogovorDate(e.target.value)}
-      />
+          {showDogovorModal && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <h3>Создание договора</h3>
 
-      <div style={{ marginTop: 20 }}>
-        <button className="btn btn-blue" onClick={handleCreateDogovor}>
-          Создать
-        </button>
+                <label>Номер договора</label>
+                <input
+                  value={dogovorNumber}
+                  onChange={(e) => setDogovorNumber(e.target.value)}
+                />
 
-        <button
-          className="btn btn-red"
-          onClick={() => setShowDogovorModal(false)}
-        >
-          Отмена
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+                <label>Дата договора</label>
+                <input
+                  type="date"
+                  value={dogovorDate}
+                  onChange={(e) => setDogovorDate(e.target.value)}
+                />
+
+                <div style={{ marginTop: 20 }}>
+                  <button className="btn btn-blue" onClick={handleCreateDogovor}>
+                    Создать
+                  </button>
+
+                  <button
+                    className="btn btn-red"
+                    onClick={() => setShowDogovorModal(false)}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button className="pdf-btn">Сформировать тех запись</button>
-          {id && (
-    <button className="pdf-btn" onClick={saveApplication}>
-      Сохранить изменения
-    </button>
-  )}
-        </div>
 
-        
+          {id && (
+            <button className="pdf-btn" onClick={saveApplication}>
+              Сохранить изменения
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

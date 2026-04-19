@@ -13,6 +13,7 @@ export default function Login() {
   });
 
   const [message, setMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // 👈 новое
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -33,11 +34,10 @@ export default function Login() {
 
       navigate("/table");
     } catch (error) {
-      setMessage(
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        "Ошибка входа"
-      );
+      console.error(error);
+
+      // 👇 всегда показываем нормальную ошибку
+      setMessage("Неверный логин или пароль");
     }
   };
 
@@ -55,21 +55,32 @@ export default function Login() {
             className="auth-input"
           />
 
-          <input
-            name="password"
-            type="password"
-            placeholder="Пароль"
-            value={form.password}
-            onChange={handleChange}
-            className="auth-input"
-          />
+          {/* 👇 пароль + кнопка показать */}
+          <div className="password-wrapper">
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Пароль"
+              value={form.password}
+              onChange={handleChange}
+              className="auth-input"
+            />
+
+            <button
+              type="button"
+              className="show-password-btn"
+              onClick={() => setShowPassword((prev) => !prev)}
+            >
+              {showPassword ? "🙈" : "👁"}
+            </button>
+          </div>
 
           <button type="submit" className="auth-button">
             Войти
           </button>
         </form>
 
-        {message && <p className="auth-message">{message}</p>}
+        {message && <p className="auth-message error">{message}</p>}
 
         <p className="auth-link-text">
           Нет аккаунта? <Link to="/register">Регистрация</Link>

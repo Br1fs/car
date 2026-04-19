@@ -62,15 +62,27 @@
   background: #1d4ed8;
 }
 
-.auth-message {
-  margin-top: 16px;
-  text-align: center;
-  font-size: 15px;
-  color: #111827;
+/* красная ошибка */
+.auth-message.error {
+  color: #e53935;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
-.auth-link-text {
-  margin-top: 18px;
-  text-align: center;
-  font-size: 15px;
+/* блок пароля */
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* кнопка глаз */
+.show-password-btn {
+  position: absolute;
+  right: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
 }

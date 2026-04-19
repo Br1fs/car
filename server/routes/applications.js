@@ -10,62 +10,132 @@ const router = express.Router();
 
 // ====== Настройка загрузки файлов ======
 const uploadFolder = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder);
+if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder, { recursive: true });
+
+const safeDecodeOriginalName = (name = "") => {
+  try {
+    return Buffer.from(name, "latin1").toString("utf8");
+  } catch {
+    return name;
+  }
+};
 
 const storage = multer.diskStorage({
   destination: uploadFolder,
   filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
+    const decodedOriginal = safeDecodeOriginalName(file.originalname || "file");
+    const safeName = decodedOriginal.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+    cb(null, `${Date.now()}-${safeName}`);
   },
 });
+
 const upload = multer({ storage });
+
+const normalizeUploadedFiles = (uploadedFiles = []) => {
+  const filesData = {};
+
+  for (const file of uploadedFiles) {
+    if (!filesData[file.fieldname]) filesData[file.fieldname] = [];
+
+    filesData[file.fieldname].push({
+      filename: file.filename,
+      originalname: safeDecodeOriginalName(file.originalname || ""),
+      mimetype: file.mimetype || "",
+      size: file.size || 0,
+    });
+  }
+
+  return filesData;
+};
+
+const normalizeExistingFiles = (files = {}) => {
+  const normalized = {};
+
+  Object.entries(files || {}).forEach(([key, arr]) => {
+    normalized[key] = (arr || []).map((file) => {
+      if (typeof file === "string") {
+        return {
+          filename: file,
+          originalname: file,
+          mimetype: "",
+          size: 0,
+        };
+      }
+
+      if (file && typeof file === "object") {
+        return {
+          filename: file.filename || file.savedName || "",
+          originalname:
+            file.originalname ||
+            file.originalName ||
+            file.filename ||
+            file.savedName ||
+            "Без имени",
+          mimetype: file.mimetype || "",
+          size: file.size || 0,
+        };
+      }
+
+      return {
+        filename: "",
+        originalname: "Без имени",
+        mimetype: "",
+        size: 0,
+      };
+    }).filter((item) => item.filename);
+  });
+
+  return normalized;
+};
 
 // ================= POST /save =================
 router.post("/save", upload.any(), async (req, res) => {
   try {
     const db = getDB();
-    const formData = JSON.parse(req.body.form);
-    const filesData = {};
+    const formData = JSON.parse(req.body.form || "{}");
 
-    for (const file of req.files) {
-  if (!filesData[file.fieldname]) filesData[file.fieldname] = [];
-  filesData[file.fieldname].push({
-    savedName: file.filename,       // имя на сервере
-    originalName: file.originalname // имя, которое было у пользователя
-  });
-}
+    const uploadedFiles = normalizeUploadedFiles(req.files || []);
+    const existingFiles = normalizeExistingFiles(formData.files || {});
 
+    const mergedFiles = { ...existingFiles };
+
+    Object.entries(uploadedFiles).forEach(([key, arr]) => {
+      mergedFiles[key] = [...(mergedFiles[key] || []), ...arr];
+    });
 
     const newApp = {
       ...formData,
-      files: filesData,
+      files: mergedFiles,
       createdAt: new Date(),
     };
 
-    // Убираем лишний _id, если пришел с фронта
     delete newApp._id;
 
     const result = await db.collection("applications").insertOne(newApp);
 
-    // Возвращаем вставленный _id фронту
-    res.json({ message: "Сохранено", _id: result.insertedId.toString() });
+    res.json({
+      message: "Сохранено",
+      _id: result.insertedId.toString(),
+    });
   } catch (err) {
     console.error("SAVE ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
 
+// ================= POST /send-whatsapp =================
 router.post("/send-whatsapp", async (req, res) => {
   try {
     const { phone, message } = req.body;
 
     if (!phone || !message) {
-      return res.status(400).json({ message: "Номер телефона и сообщение обязательны" });
+      return res
+        .status(400)
+        .json({ message: "Номер телефона и сообщение обязательны" });
     }
 
-    // Пример с WhatsApp Cloud API
-    const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN; // токен из Meta
-    const PHONE_ID = process.env.WHATSAPP_PHONE_ID; // id вашего номера
+    const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+    const PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 
     const response = await axios.post(
       `https://graph.facebook.com/v17.0/${PHONE_ID}/messages`,
@@ -73,13 +143,13 @@ router.post("/send-whatsapp", async (req, res) => {
         messaging_product: "whatsapp",
         to: phone,
         type: "text",
-        text: { body: message }
+        text: { body: message },
       },
       {
         headers: {
-          "Authorization": `Bearer ${WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json"
-        }
+          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
       }
     );
 
@@ -90,14 +160,13 @@ router.post("/send-whatsapp", async (req, res) => {
   }
 });
 
-
-
 // ================= GET все заявки =================
 router.get("/", async (req, res) => {
   try {
     const db = getDB();
 
-    const apps = await db.collection("applications")
+    const apps = await db
+      .collection("applications")
       .find(
         {},
         {
@@ -113,6 +182,8 @@ router.get("/", async (req, res) => {
             year: 1,
             volume: 1,
             broker: 1,
+            files: 1,
+            protocolNumber: 1,
           },
         }
       )
@@ -144,6 +215,8 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Заявка не найдена" });
     }
 
+    application.files = normalizeExistingFiles(application.files || {});
+
     res.json(application);
   } catch (err) {
     console.error("GET BY ID ERROR:", err);
@@ -161,21 +234,38 @@ router.put("/:id", upload.any(), async (req, res) => {
       return res.status(400).json({ message: "Неверный ID" });
     }
 
-    const formData = JSON.parse(req.body.form);
-    const filesData = {};
+    const formData = JSON.parse(req.body.form || "{}");
 
-    for (const file of req.files) {
-      if (!filesData[file.fieldname]) filesData[file.fieldname] = [];
-      filesData[file.fieldname].push(file.filename);
+    const currentApp = await db
+      .collection("applications")
+      .findOne({ _id: new ObjectId(id) });
+
+    if (!currentApp) {
+      return res.status(404).json({ message: "Заявка не найдена" });
     }
 
-    if (Object.keys(filesData).length > 0) {
-      formData.files = { ...(formData.files || {}), ...filesData };
-    }
+    const existingFiles = normalizeExistingFiles(
+      formData.files || currentApp.files || {}
+    );
+
+    const uploadedFiles = normalizeUploadedFiles(req.files || []);
+
+    const mergedFiles = { ...existingFiles };
+
+    Object.entries(uploadedFiles).forEach(([key, arr]) => {
+      mergedFiles[key] = [...(mergedFiles[key] || []), ...arr];
+    });
+
+    formData.files = mergedFiles;
 
     const result = await db.collection("applications").updateOne(
       { _id: new ObjectId(id) },
-      { $set: { ...formData, updatedAt: new Date() } }
+      {
+        $set: {
+          ...formData,
+          updatedAt: new Date(),
+        },
+      }
     );
 
     if (result.matchedCount === 0) {

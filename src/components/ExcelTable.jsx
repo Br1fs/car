@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -45,7 +45,7 @@ const applicationStatusOptions = [
   "Ждем фото",
 ];
 
-const specialistOptions = [
+const defaultSpecialistOptions = [
   "",
   "Эрик",
   "Нуржан",
@@ -53,6 +53,13 @@ const specialistOptions = [
   "Ерке",
   "Ислам",
   "Айнура",
+];
+
+const defaultBrokerOptions = [
+  "",
+  "Алина",
+  "Диас",
+  "Асель",
 ];
 
 const emptyRow = {
@@ -105,16 +112,29 @@ function getRowStatusColor(status) {
     value.includes("отказ") ||
     value.includes("ошиб")
   ) {
-    return "#ffcdd2";
+    return "#FF0000";
   }
 
   if (
     value.includes("выполняется") ||
-    value.includes("рассмотр") ||
-    value.includes("ждем фото")
+    value.includes("рассмотр") 
   ) {
     return "#fff176";
   }
+
+
+   if (
+    value.includes("ждем фото")
+  ) {
+    return "#FFC0CB";
+  }
+
+   if (
+    value.includes("Стоп")
+  ) {
+    return "#FF0000";
+  }
+
 
   return "#ffffff";
 }
@@ -221,6 +241,246 @@ function addDailyNumeration(rows) {
   });
 }
 
+function loadSavedOptions(key, fallback) {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return fallback;
+
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return fallback;
+
+    const normalized = parsed
+      .map((item) => String(item || "").trim())
+      .filter((item, index, arr) => arr.indexOf(item) === index);
+
+    if (!normalized.includes("")) {
+      normalized.unshift("");
+    }
+
+    return normalized;
+  } catch {
+    return fallback;
+  }
+}
+
+const TableRow = React.memo(function TableRow({
+  row,
+  rowColor,
+  brokerOptions,
+  specialistOptions,
+  applicationStatusOptions,
+  savingId,
+  onChange,
+  onBlurSave,
+  onSelectChangeAndSave,
+  onClear,
+}) {
+  return (
+    <tr>
+      <td style={{ ...tdStyle, ...wNum, background: rowColor }}>
+        {row.dailyNumeration}
+      </td>
+
+      <td style={{ ...tdStyle, ...wNumber, background: rowColor }}>
+        <input
+          type="text"
+          value={row.number || ""}
+          onChange={(e) => onChange(row._id, "number", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wFio, background: rowColor }}>
+        <input
+          type="text"
+          value={row.fio || ""}
+          onChange={(e) => onChange(row._id, "fio", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wType, background: rowColor }}>
+        <input
+          type="text"
+          value={row.type || ""}
+          onChange={(e) => onChange(row._id, "type", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td
+        style={{
+          ...tdStyle,
+          ...wBrandModel,
+          background: rowColor,
+        }}
+      >
+        <div style={{ display: "grid", gap: "4px" }}>
+          <input
+            type="text"
+            placeholder="Марка"
+            value={row.brand || ""}
+            onChange={(e) => onChange(row._id, "brand", e.target.value)}
+            onBlur={() => onBlurSave(row._id)}
+            style={tableInputStyle}
+          />
+          <input
+            type="text"
+            placeholder="Модель"
+            value={row.model || ""}
+            onChange={(e) => onChange(row._id, "model", e.target.value)}
+            onBlur={() => onBlurSave(row._id)}
+            style={tableInputStyle}
+          />
+        </div>
+      </td>
+
+      <td style={{ ...tdStyle, ...wColor, background: rowColor }}>
+        <input
+          type="text"
+          value={row.color || ""}
+          onChange={(e) => onChange(row._id, "color", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wVin, background: rowColor }}>
+        <input
+          type="text"
+          value={row.vinCode || ""}
+          onChange={(e) => onChange(row._id, "vinCode", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wBroker, background: rowColor }}>
+        <select
+          value={row.broker || ""}
+          onChange={(e) =>
+            onSelectChangeAndSave(row._id, "broker", e.target.value)
+          }
+          style={tableInputStyle}
+        >
+          {brokerOptions.map((item) => (
+            <option key={item} value={item}>
+              {item || "Выбрать"}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      <td style={{ ...tdStyle, ...wStatus, background: rowColor }}>
+        <select
+          value={row.applicationStatus || ""}
+          onChange={(e) =>
+            onSelectChangeAndSave(row._id, "applicationStatus", e.target.value)
+          }
+          style={tableInputStyle}
+        >
+          {applicationStatusOptions.map((item) => (
+            <option key={item} value={item}>
+              {item || "Выбрать"}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      <td style={{ ...tdStyle, ...wDate, background: rowColor }}>
+        <input
+          type="date"
+          value={row.submitDate || ""}
+          onChange={(e) => onChange(row._id, "submitDate", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wAppNumber, background: rowColor }}>
+        <input
+          type="text"
+          value={row.applicationNumber || ""}
+          onChange={(e) =>
+            onChange(row._id, "applicationNumber", e.target.value)
+          }
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wSpecialist, background: rowColor }}>
+        <select
+          value={row.specialist || ""}
+          onChange={(e) =>
+            onSelectChangeAndSave(row._id, "specialist", e.target.value)
+          }
+          style={tableInputStyle}
+        >
+          {specialistOptions.map((item) => (
+            <option key={item} value={item}>
+              {item || "Выбрать"}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      <td style={{ ...tdStyle, ...wSbkts, background: rowColor }}>
+        <input
+          type="text"
+          value={row.sbktsNumber || ""}
+          onChange={(e) => onChange(row._id, "sbktsNumber", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wComment, background: rowColor }}>
+        <input
+          type="text"
+          value={row.comment || ""}
+          onChange={(e) => onChange(row._id, "comment", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wSmallStatus, background: rowColor }}>
+        <input
+          type="text"
+          value={row.sbktsEptsStatus || ""}
+          onChange={(e) => onChange(row._id, "sbktsEptsStatus", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wSmallStatus, background: rowColor }}>
+        <input
+          type="text"
+          value={row.eptsStatus || ""}
+          onChange={(e) => onChange(row._id, "eptsStatus", e.target.value)}
+          onBlur={() => onBlurSave(row._id)}
+          style={tableInputStyle}
+        />
+      </td>
+
+      <td style={{ ...tdStyle, ...wAction, background: rowColor }}>
+        <button
+          onClick={() => onClear(row)}
+          style={smallDeleteButtonStyle}
+          title={savingId === row._id ? "Сохраняется..." : "Очистить"}
+        >
+          X
+        </button>
+      </td>
+    </tr>
+  );
+});
+
 export default function ExcelTable() {
   const [rows, setRows] = useState([]);
   const [journalRows, setJournalRows] = useState([]);
@@ -234,19 +494,34 @@ export default function ExcelTable() {
   const [selectedYear, setSelectedYear] = useState("all");
   const [selectedDay, setSelectedDay] = useState("all");
 
-  const saveTimeoutsRef = useRef({});
+  const [specialistOptions, setSpecialistOptions] = useState(() =>
+    loadSavedOptions("journal_specialist_options", defaultSpecialistOptions)
+  );
+  const [brokerOptions, setBrokerOptions] = useState(() =>
+    loadSavedOptions("journal_broker_options", defaultBrokerOptions)
+  );
+
+  const [newSpecialistName, setNewSpecialistName] = useState("");
+  const [newBrokerName, setNewBrokerName] = useState("");
+
+  const [selectedBrokerToDelete, setSelectedBrokerToDelete] = useState("");
+  const [selectedSpecialistToDelete, setSelectedSpecialistToDelete] =
+    useState("");
 
   useEffect(() => {
     fetchAll();
   }, []);
 
   useEffect(() => {
-    return () => {
-      Object.values(saveTimeoutsRef.current).forEach((timeoutId) => {
-        clearTimeout(timeoutId);
-      });
-    };
-  }, []);
+    localStorage.setItem(
+      "journal_specialist_options",
+      JSON.stringify(specialistOptions)
+    );
+  }, [specialistOptions]);
+
+  useEffect(() => {
+    localStorage.setItem("journal_broker_options", JSON.stringify(brokerOptions));
+  }, [brokerOptions]);
 
   const fetchAll = async () => {
     try {
@@ -328,7 +603,7 @@ export default function ExcelTable() {
       );
     }
 
-    return addDailyNumeration(sortRowsByDateDesc(result));
+    return addDailyNumeration(result);
   }, [rows, search, selectedMonth, selectedYear, selectedDay]);
 
   const saveRow = async (row) => {
@@ -377,14 +652,16 @@ export default function ExcelTable() {
       });
 
       setRows((prev) =>
-        prev.map((item) =>
-          item._id === row._id
-            ? {
-                ...item,
-                journalId: saved._id,
-                createdAt: item.createdAt,
-              }
-            : item
+        sortRowsByDateDesc(
+          prev.map((item) =>
+            item._id === row._id
+              ? {
+                  ...item,
+                  journalId: saved._id,
+                  createdAt: item.createdAt,
+                }
+              : item
+          )
         )
       );
     } catch (error) {
@@ -399,35 +676,125 @@ export default function ExcelTable() {
     }
   };
 
-  const queueAutoSave = (rowId) => {
-    if (saveTimeoutsRef.current[rowId]) {
-      clearTimeout(saveTimeoutsRef.current[rowId]);
-    }
-
-    saveTimeoutsRef.current[rowId] = setTimeout(() => {
-      setRows((currentRows) => {
-        const currentRow = currentRows.find((item) => item._id === rowId);
-        if (currentRow) {
-          saveRow(currentRow);
-        }
-        return currentRows;
-      });
-    }, 700);
-  };
-
-  const handleChange = (id, field, value) => {
+  const handleChange = React.useCallback((id, field, value) => {
     setRows((prev) =>
       prev.map((row) => (row._id === id ? { ...row, [field]: value } : row))
     );
+  }, []);
 
-    queueAutoSave(id);
-  };
+  const handleBlurSave = React.useCallback(
+    (id) => {
+      setRows((prev) => {
+        const row = prev.find((item) => item._id === id);
+        if (row) {
+          Promise.resolve().then(() => saveRow(row));
+        }
+        return prev;
+      });
+    },
+    []
+  );
+
+  const handleSelectChangeAndSave = React.useCallback((id, field, value) => {
+    setRows((prev) => {
+      const updated = prev.map((row) =>
+        row._id === id ? { ...row, [field]: value } : row
+      );
+
+      const changedRow = updated.find((row) => row._id === id);
+      if (changedRow) {
+        setTimeout(() => saveRow(changedRow), 0);
+      }
+
+      return updated;
+    });
+  }, []);
 
   const handleNewRowChange = (field, value) => {
     setNewRow((prev) => ({
       ...prev,
       [field]: value,
     }));
+  };
+
+  const addSpecialistOption = () => {
+    const name = newSpecialistName.trim();
+    if (!name) return;
+
+    const exists = specialistOptions.some(
+      (item) => item.toLowerCase() === name.toLowerCase()
+    );
+
+    if (exists) {
+      alert("Такой специалист уже есть в списке");
+      return;
+    }
+
+    setSpecialistOptions((prev) => [...prev, name]);
+    setNewSpecialistName("");
+  };
+
+  const addBrokerOption = () => {
+    const name = newBrokerName.trim();
+    if (!name) return;
+
+    const exists = brokerOptions.some(
+      (item) => item.toLowerCase() === name.toLowerCase()
+    );
+
+    if (exists) {
+      alert("Такой брокер уже есть в списке");
+      return;
+    }
+
+    setBrokerOptions((prev) => [...prev, name]);
+    setNewBrokerName("");
+  };
+
+  const deleteBrokerOption = () => {
+    const name = selectedBrokerToDelete.trim();
+    if (!name) return;
+
+    const protectedNames = defaultBrokerOptions.filter(Boolean);
+    if (protectedNames.includes(name)) {
+      alert("Стандартного брокера удалять нельзя");
+      return;
+    }
+
+    setBrokerOptions((prev) => prev.filter((item) => item !== name));
+
+    setRows((prev) =>
+      prev.map((row) => (row.broker === name ? { ...row, broker: "" } : row))
+    );
+
+    setNewRow((prev) => (prev.broker === name ? { ...prev, broker: "" } : prev));
+
+    setSelectedBrokerToDelete("");
+  };
+
+  const deleteSpecialistOption = () => {
+    const name = selectedSpecialistToDelete.trim();
+    if (!name) return;
+
+    const protectedNames = defaultSpecialistOptions.filter(Boolean);
+    if (protectedNames.includes(name)) {
+      alert("Стандартного специалиста удалять нельзя");
+      return;
+    }
+
+    setSpecialistOptions((prev) => prev.filter((item) => item !== name));
+
+    setRows((prev) =>
+      prev.map((row) =>
+        row.specialist === name ? { ...row, specialist: "" } : row
+      )
+    );
+
+    setNewRow((prev) =>
+      prev.specialist === name ? { ...prev, specialist: "" } : prev
+    );
+
+    setSelectedSpecialistToDelete("");
   };
 
   const addManualRow = async () => {
@@ -491,7 +858,7 @@ export default function ExcelTable() {
     }
   };
 
-  const clearJournalFields = async (row) => {
+  const clearJournalFields = React.useCallback(async (row) => {
     try {
       if (!row.journalId) {
         setRows((prev) =>
@@ -543,7 +910,7 @@ export default function ExcelTable() {
           "Не удалось очистить запись"
       );
     }
-  };
+  }, []);
 
   const exportToExcel = () => {
     const dataForExcel = filteredRows.map((row) => ({
@@ -788,13 +1155,65 @@ export default function ExcelTable() {
                 style={inputStyle}
               />
 
-              <input
-                type="text"
-                placeholder="БРОКЕР"
+              <select
                 value={newRow.broker}
                 onChange={(e) => handleNewRowChange("broker", e.target.value)}
                 style={inputStyle}
-              />
+              >
+                {brokerOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item || "Брокер"}
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input
+                  type="text"
+                  placeholder="Добавить брокера"
+                  value={newBrokerName}
+                  onChange={(e) => setNewBrokerName(e.target.value)}
+                  style={inputStyle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addBrokerOption();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={addBrokerOption}
+                  style={smallAddButtonStyle}
+                >
+                  +
+                </button>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <select
+                  value={selectedBrokerToDelete}
+                  onChange={(e) => setSelectedBrokerToDelete(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Удалить брокера</option>
+                  {brokerOptions
+                    .filter((item) => item && !defaultBrokerOptions.includes(item))
+                    .map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={deleteBrokerOption}
+                  style={smallRemoveButtonStyle}
+                >
+                  −
+                </button>
+              </div>
 
               <select
                 value={newRow.applicationStatus}
@@ -842,6 +1261,56 @@ export default function ExcelTable() {
                   </option>
                 ))}
               </select>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input
+                  type="text"
+                  placeholder="Добавить специалиста"
+                  value={newSpecialistName}
+                  onChange={(e) => setNewSpecialistName(e.target.value)}
+                  style={inputStyle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addSpecialistOption();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={addSpecialistOption}
+                  style={smallAddButtonStyle}
+                >
+                  +
+                </button>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <select
+                  value={selectedSpecialistToDelete}
+                  onChange={(e) => setSelectedSpecialistToDelete(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Удалить специалиста</option>
+                  {specialistOptions
+                    .filter(
+                      (item) => item && !defaultSpecialistOptions.includes(item)
+                    )
+                    .map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={deleteSpecialistOption}
+                  style={smallRemoveButtonStyle}
+                >
+                  −
+                </button>
+              </div>
 
               <input
                 type="text"
@@ -934,273 +1403,19 @@ export default function ExcelTable() {
                       const rowColor = getRowStatusColor(row.applicationStatus);
 
                       return (
-                        <tr key={row._id}>
-                          <td style={{ ...tdStyle, ...wNum, background: rowColor }}>
-                            {row.dailyNumeration}
-                          </td>
-
-                          <td
-                            style={{ ...tdStyle, ...wNumber, background: rowColor }}
-                          >
-                            <input
-                              type="text"
-                              value={row.number || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "number", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td style={{ ...tdStyle, ...wFio, background: rowColor }}>
-                            <input
-                              type="text"
-                              value={row.fio || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "fio", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{ ...tdStyle, ...wType, background: rowColor }}
-                          >
-                            <input
-                              type="text"
-                              value={row.type || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "type", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              ...tdStyle,
-                              ...wBrandModel,
-                              background: rowColor,
-                            }}
-                          >
-                            <div style={{ display: "grid", gap: "4px" }}>
-                              <input
-                                type="text"
-                                placeholder="Марка"
-                                value={row.brand || ""}
-                                onChange={(e) =>
-                                  handleChange(row._id, "brand", e.target.value)
-                                }
-                                style={tableInputStyle}
-                              />
-                              <input
-                                type="text"
-                                placeholder="Модель"
-                                value={row.model || ""}
-                                onChange={(e) =>
-                                  handleChange(row._id, "model", e.target.value)
-                                }
-                                style={tableInputStyle}
-                              />
-                            </div>
-                          </td>
-
-                          <td
-                            style={{ ...tdStyle, ...wColor, background: rowColor }}
-                          >
-                            <input
-                              type="text"
-                              value={row.color || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "color", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td style={{ ...tdStyle, ...wVin, background: rowColor }}>
-                            <input
-                              type="text"
-                              value={row.vinCode || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "vinCode", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{ ...tdStyle, ...wBroker, background: rowColor }}
-                          >
-                            <input
-                              type="text"
-                              value={row.broker || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "broker", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{ ...tdStyle, ...wStatus, background: rowColor }}
-                          >
-                            <select
-                              value={row.applicationStatus || ""}
-                              onChange={(e) =>
-                                handleChange(
-                                  row._id,
-                                  "applicationStatus",
-                                  e.target.value
-                                )
-                              }
-                              style={tableInputStyle}
-                            >
-                              {applicationStatusOptions.map((item) => (
-                                <option key={item} value={item}>
-                                  {item || "Выбрать"}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-
-                          <td style={{ ...tdStyle, ...wDate, background: rowColor }}>
-                            <input
-                              type="date"
-                              value={row.submitDate || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "submitDate", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              ...tdStyle,
-                              ...wAppNumber,
-                              background: rowColor,
-                            }}
-                          >
-                            <input
-                              type="text"
-                              value={row.applicationNumber || ""}
-                              onChange={(e) =>
-                                handleChange(
-                                  row._id,
-                                  "applicationNumber",
-                                  e.target.value
-                                )
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              ...tdStyle,
-                              ...wSpecialist,
-                              background: rowColor,
-                            }}
-                          >
-                            <select
-                              value={row.specialist || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "specialist", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            >
-                              {specialistOptions.map((item) => (
-                                <option key={item} value={item}>
-                                  {item || "Выбрать"}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-
-                          <td
-                            style={{ ...tdStyle, ...wSbkts, background: rowColor }}
-                          >
-                            <input
-                              type="text"
-                              value={row.sbktsNumber || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "sbktsNumber", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              ...tdStyle,
-                              ...wComment,
-                              background: rowColor,
-                            }}
-                          >
-                            <input
-                              type="text"
-                              value={row.comment || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "comment", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              ...tdStyle,
-                              ...wSmallStatus,
-                              background: rowColor,
-                            }}
-                          >
-                            <input
-                              type="text"
-                              value={row.sbktsEptsStatus || ""}
-                              onChange={(e) =>
-                                handleChange(
-                                  row._id,
-                                  "sbktsEptsStatus",
-                                  e.target.value
-                                )
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              ...tdStyle,
-                              ...wSmallStatus,
-                              background: rowColor,
-                            }}
-                          >
-                            <input
-                              type="text"
-                              value={row.eptsStatus || ""}
-                              onChange={(e) =>
-                                handleChange(row._id, "eptsStatus", e.target.value)
-                              }
-                              style={tableInputStyle}
-                            />
-                          </td>
-
-                          <td
-                            style={{
-                              ...tdStyle,
-                              ...wAction,
-                              background: rowColor,
-                            }}
-                          >
-                            <button
-                              onClick={() => clearJournalFields(row)}
-                              style={smallDeleteButtonStyle}
-                            >
-                              X
-                            </button>
-                          </td>
-                        </tr>
+                        <TableRow
+                          key={row._id}
+                          row={row}
+                          rowColor={rowColor}
+                          brokerOptions={brokerOptions}
+                          specialistOptions={specialistOptions}
+                          applicationStatusOptions={applicationStatusOptions}
+                          savingId={savingId}
+                          onChange={handleChange}
+                          onBlurSave={handleBlurSave}
+                          onSelectChangeAndSave={handleSelectChangeAndSave}
+                          onClear={clearJournalFields}
+                        />
                       );
                     })
                   ) : (
@@ -1266,6 +1481,30 @@ const secondaryButtonStyle = {
   color: "#333",
   cursor: "pointer",
   fontWeight: "600",
+};
+
+const smallAddButtonStyle = {
+  minWidth: "42px",
+  padding: "0 12px",
+  border: "none",
+  borderRadius: "8px",
+  background: "#1976d2",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: "700",
+  fontSize: "18px",
+};
+
+const smallRemoveButtonStyle = {
+  minWidth: "42px",
+  padding: "0 12px",
+  border: "none",
+  borderRadius: "8px",
+  background: "#d32f2f",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: "700",
+  fontSize: "18px",
 };
 
 const smallDeleteButtonStyle = {

@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
 import { connectDB } from "./db.js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -50,6 +51,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/epts-journal", eptsJournalRoutes);
 // ===== ЖУРНАЛ =====
 app.use("/api/table-journal", tableJournalRoutes);
+// ===== доки =====
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ===== Запуск сервера =====
 // ===== Запуск сервера =====
