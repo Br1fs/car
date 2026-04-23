@@ -158,17 +158,3 @@ const buttonStyle = {
   fontWeight: 700,
   cursor: "pointer",
 };
-export default function WorkNotes() {
-  return (
-    <div style={{
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      height: "80vh",
-      fontSize: "28px",
-      fontWeight: "bold"
-    }}>
-      В разработке
-    </div>
-  );
-}
