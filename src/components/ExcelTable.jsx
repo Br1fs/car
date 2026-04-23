@@ -1,66 +1,24 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-const monthOptions = [
-  { value: "all", label: "Все месяцы" },
-  { value: "01", label: "Январь" },
-  { value: "02", label: "Февраль" },
-  { value: "03", label: "Март" },
-  { value: "04", label: "Апрель" },
-  { value: "05", label: "Май" },
-  { value: "06", label: "Июнь" },
-  { value: "07", label: "Июль" },
-  { value: "08", label: "Август" },
-  { value: "09", label: "Сентябрь" },
-  { value: "10", label: "Октябрь" },
-  { value: "11", label: "Ноябрь" },
-  { value: "12", label: "Декабрь" },
-];
-
-const yearOptions = [
-  { value: "all", label: "Все годы" },
-  { value: "2026", label: "2026" },
-  { value: "2027", label: "2027" },
-  { value: "2028", label: "2028" },
-];
-
-const dayOptions = [
-  { value: "all", label: "Все числа" },
-  ...Array.from({ length: 31 }, (_, i) => {
-    const day = String(i + 1).padStart(2, "0");
-    return { value: day, label: String(i + 1) };
-  }),
-];
+const JOURNAL_DATE_FILTER_KEY = "journal_date_filter_v2";
 
 const applicationStatusOptions = [
   "",
+  "На одобрении",
   "На рассмотрении",
-  "Выпуск готов",
   "Выполняется",
-  "Стоп",
+  "Прозвона нет",
   "Ждем фото",
+  "Выпуск готов",
+  "Стоп",
 ];
 
-const defaultSpecialistOptions = [
-  "",
-  "Эрик",
-  "Нуржан",
-  "Ару",
-  "Ерке",
-  "Ислам",
-  "Айнура",
-];
-
-const defaultBrokerOptions = [
-  "",
-  "Алина",
-  "Диас",
-  "Асель",
-];
+const defaultSpecialistOptions = ["", "Эрик", "Нуржан", "Ару", "Ерке", "Ислам", "Айнура"];
+const defaultBrokerOptions = ["", "Алина", "Диас", "Асель"];
 
 const emptyRow = {
   number: "",
@@ -81,115 +39,119 @@ const emptyRow = {
   eptsStatus: "",
 };
 
-function normalizeDate(value) {
+const defaultColumnWidths = {
+  num: 50,
+  number: 76,
+  fio: 190,
+  type: 90,
+  brandModel: 220,
+  color: 90,
+  vin: 160,
+  broker: 120,
+  status: 160,
+  date: 130,
+  appNumber: 140,
+  specialist: 140,
+  sbkts: 150,
+  comment: 200,
+  smallStatus: 170,
+  action: 72,
+};
+
+const toDateInput = (value) => {
   if (!value) return "";
   if (typeof value !== "string") return "";
+  if (value.includes("T")) return value.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+};
 
-  if (value.includes("T")) {
-    return value.slice(0, 10);
+const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+const getInitialDateFilter = () => {
+  try {
+    const raw = localStorage.getItem(JOURNAL_DATE_FILTER_KEY);
+    if (!raw) return { fromDate: "", toDate: "" };
+    const parsed = JSON.parse(raw);
+    if (parsed?.savedForDay !== getTodayKey()) return { fromDate: "", toDate: "" };
+    return {
+      fromDate: parsed?.fromDate || "",
+      toDate: parsed?.toDate || "",
+    };
+  } catch {
+    return { fromDate: "", toDate: "" };
   }
+};
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
+const loadSavedOptions = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return fallback;
+    const normalized = parsed
+      .map((item) => String(item || "").trim())
+      .filter((item, idx, arr) => item && arr.indexOf(item) === idx);
+    return ["", ...normalized];
+  } catch {
+    return fallback;
   }
+};
 
-  return value;
-}
-
-function getRowStatusColor(status) {
-  const value = (status || "").toLowerCase();
-
-  if (
-    value.includes("выпуск готов") ||
-    value.includes("готов") ||
-    value.includes("заверш")
-  ) {
-    return "#b9f6ca";
+const getRowStatusColor = (status) => {
+  const value = String(status || "").toLowerCase();
+  if (value.includes("выпуск готов") || value.includes("готов")) return "#d7f6de";
+  if (value.includes("ждем фото")) return "#ffe0ec";
+  if (value.includes("прозвона нет") || value.includes("стоп")) return "#ffd7d7";
+  if (value.includes("выполняется") || value.includes("рассмотр") || value.includes("одобр")) {
+    return "#fff3c9";
   }
-
-  if (
-    value.includes("стоп") ||
-    value.includes("отказ") ||
-    value.includes("ошиб")
-  ) {
-    return "#FF0000";
-  }
-
-  if (
-    value.includes("выполняется") ||
-    value.includes("рассмотр") 
-  ) {
-    return "#fff176";
-  }
-
-
-   if (
-    value.includes("ждем фото")
-  ) {
-    return "#FFC0CB";
-  }
-
-   if (
-    value.includes("Стоп")
-  ) {
-    return "#FF0000";
-  }
-
-
   return "#ffffff";
-}
+};
 
-function sortRowsByDateDesc(rows) {
-  return [...rows].sort((a, b) => {
+const sortRowsByDateDesc = (rows) =>
+  [...rows].sort((a, b) => {
     const dateA = a.submitDate || "";
     const dateB = b.submitDate || "";
-
-    if (dateA !== dateB) {
-      return dateB.localeCompare(dateA);
-    }
-
-    const createdA = a.createdAt || "";
-    const createdB = b.createdAt || "";
-
-    return createdB.localeCompare(createdA);
+    if (dateA !== dateB) return dateB.localeCompare(dateA);
+    return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
   });
-}
 
-function buildMergedRows(applications, journalRows) {
+const addDailyNumeration = (rows) => {
+  const counters = new Map();
+  return rows.map((row) => {
+    const key = row.submitDate || "no-date";
+    const next = (counters.get(key) || 0) + 1;
+    counters.set(key, next);
+    return { ...row, dailyNumeration: next };
+  });
+};
+
+const buildMergedRows = (applications, journalRows) => {
   const journalByAppId = new Map(
-    journalRows
-      .filter((item) => item.applicationId)
-      .map((item) => [item.applicationId, item])
+    journalRows.filter((item) => item.applicationId).map((item) => [item.applicationId, item])
   );
 
   const appRows = applications.map((app) => {
     const appId = app._id || "";
     const journal = journalByAppId.get(appId);
-
     return {
       _id: appId,
       journalId: journal?._id || null,
       rowType: "application",
       createdAt: journal?.createdAt || app.createdAt || "",
-
-      number: journal?.number ?? app.number ?? app.protocolNumber ?? "",
+      number: journal?.number ?? app.protocolNumber ?? "",
       fio: journal?.fio ?? app.fio ?? "",
-      type: journal?.type ?? app.type ?? app.typ ?? "",
+      type: journal?.type ?? app.typ ?? "",
       brand: journal?.brand ?? app.brand ?? "",
       model: journal?.model ?? app.model ?? "",
       color: journal?.color ?? app.color ?? "",
-      vinCode: journal?.vinCode ?? app.vin ?? app.vinCode ?? "",
+      vinCode: journal?.vinCode ?? app.vin ?? "",
       broker: journal?.broker ?? app.broker ?? "",
-      applicationStatus:
-        journal?.applicationStatus ?? app.status1 ?? app.status ?? "",
-      submitDate: journal?.submitDate ?? normalizeDate(app.createdAt) ?? "",
-      applicationNumber:
-        journal?.applicationNumber ??
-        app.applicationNumber ??
-        app.protocolNumber ??
-        "",
-      specialist: journal?.specialist ?? app.specialist ?? app.manager ?? "",
-      sbktsNumber: journal?.sbktsNumber ?? app.sbktsNumber ?? "",
+      applicationStatus: journal?.applicationStatus ?? app.status1 ?? "",
+      submitDate: journal?.submitDate ?? toDateInput(app.createdAt),
+      applicationNumber: journal?.applicationNumber ?? app.protocolNumber ?? "",
+      specialist: journal?.specialist ?? app.specialist ?? "",
+      sbktsNumber: journal?.sbktsNumber ?? "",
       comment: journal?.comment ?? "",
       sbktsEptsStatus: journal?.sbktsEptsStatus ?? "",
       eptsStatus: journal?.eptsStatus ?? "",
@@ -203,7 +165,6 @@ function buildMergedRows(applications, journalRows) {
       journalId: item._id,
       rowType: "manual",
       createdAt: item.createdAt || "",
-
       number: item.number || "",
       fio: item.fio || "",
       type: item.type || "",
@@ -223,52 +184,27 @@ function buildMergedRows(applications, journalRows) {
     }));
 
   return sortRowsByDateDesc([...appRows, ...manualRows]);
-}
+};
 
-function addDailyNumeration(rows) {
-  const counters = new Map();
-
-  return rows.map((row) => {
-    const key = row.submitDate || "no-date";
-    const current = counters.get(key) || 0;
-    const next = current + 1;
-    counters.set(key, next);
-
-    return {
-      ...row,
-      dailyNumeration: next,
-    };
-  });
-}
-
-function loadSavedOptions(key, fallback) {
-  try {
-    const saved = localStorage.getItem(key);
-    if (!saved) return fallback;
-
-    const parsed = JSON.parse(saved);
-    if (!Array.isArray(parsed)) return fallback;
-
-    const normalized = parsed
-      .map((item) => String(item || "").trim())
-      .filter((item, index, arr) => arr.indexOf(item) === index);
-
-    if (!normalized.includes("")) {
-      normalized.unshift("");
-    }
-
-    return normalized;
-  } catch {
-    return fallback;
-  }
-}
+const HeaderCell = ({ label, widthKey, columnWidths, onResizeStart }) => (
+  <th style={{ ...thStyle, width: columnWidths[widthKey] }}>
+    <div style={thContentStyle}>
+      <span>{label}</span>
+      <span
+        role="presentation"
+        style={resizerStyle}
+        onMouseDown={(event) => onResizeStart(widthKey, event)}
+      />
+    </div>
+  </th>
+);
 
 const TableRow = React.memo(function TableRow({
   row,
   rowColor,
+  columnWidths,
   brokerOptions,
   specialistOptions,
-  applicationStatusOptions,
   savingId,
   onChange,
   onBlurSave,
@@ -277,95 +213,30 @@ const TableRow = React.memo(function TableRow({
 }) {
   return (
     <tr>
-      <td style={{ ...tdStyle, ...wNum, background: rowColor }}>
-        {row.dailyNumeration}
+      <td style={{ ...tdStyle, width: columnWidths.num, background: rowColor }}>{row.dailyNumeration}</td>
+      <td style={{ ...tdStyle, width: columnWidths.number, background: rowColor }}>
+        <input value={row.number || ""} onChange={(e) => onChange(row._id, "number", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wNumber, background: rowColor }}>
-        <input
-          type="text"
-          value={row.number || ""}
-          onChange={(e) => onChange(row._id, "number", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.fio, background: rowColor }}>
+        <input value={row.fio || ""} onChange={(e) => onChange(row._id, "fio", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wFio, background: rowColor }}>
-        <input
-          type="text"
-          value={row.fio || ""}
-          onChange={(e) => onChange(row._id, "fio", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.type, background: rowColor }}>
+        <input value={row.type || ""} onChange={(e) => onChange(row._id, "type", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wType, background: rowColor }}>
-        <input
-          type="text"
-          value={row.type || ""}
-          onChange={(e) => onChange(row._id, "type", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
-      </td>
-
-      <td
-        style={{
-          ...tdStyle,
-          ...wBrandModel,
-          background: rowColor,
-        }}
-      >
-        <div style={{ display: "grid", gap: "4px" }}>
-          <input
-            type="text"
-            placeholder="Марка"
-            value={row.brand || ""}
-            onChange={(e) => onChange(row._id, "brand", e.target.value)}
-            onBlur={() => onBlurSave(row._id)}
-            style={tableInputStyle}
-          />
-          <input
-            type="text"
-            placeholder="Модель"
-            value={row.model || ""}
-            onChange={(e) => onChange(row._id, "model", e.target.value)}
-            onBlur={() => onBlurSave(row._id)}
-            style={tableInputStyle}
-          />
+      <td style={{ ...tdStyle, width: columnWidths.brandModel, background: rowColor }}>
+        <div style={{ display: "grid", gap: 4 }}>
+          <input placeholder="Марка" value={row.brand || ""} onChange={(e) => onChange(row._id, "brand", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
+          <input placeholder="Модель" value={row.model || ""} onChange={(e) => onChange(row._id, "model", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
         </div>
       </td>
-
-      <td style={{ ...tdStyle, ...wColor, background: rowColor }}>
-        <input
-          type="text"
-          value={row.color || ""}
-          onChange={(e) => onChange(row._id, "color", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.color, background: rowColor }}>
+        <input value={row.color || ""} onChange={(e) => onChange(row._id, "color", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wVin, background: rowColor }}>
-        <input
-          type="text"
-          value={row.vinCode || ""}
-          onChange={(e) => onChange(row._id, "vinCode", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.vin, background: rowColor }}>
+        <input value={row.vinCode || ""} onChange={(e) => onChange(row._id, "vinCode", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wBroker, background: rowColor }}>
-        <select
-          value={row.broker || ""}
-          onChange={(e) =>
-            onSelectChangeAndSave(row._id, "broker", e.target.value)
-          }
-          style={tableInputStyle}
-        >
+      <td style={{ ...tdStyle, width: columnWidths.broker, background: rowColor }}>
+        <select value={row.broker || ""} onChange={(e) => onSelectChangeAndSave(row._id, "broker", e.target.value)} style={tableInputStyle}>
           {brokerOptions.map((item) => (
             <option key={item} value={item}>
               {item || "Выбрать"}
@@ -373,15 +244,8 @@ const TableRow = React.memo(function TableRow({
           ))}
         </select>
       </td>
-
-      <td style={{ ...tdStyle, ...wStatus, background: rowColor }}>
-        <select
-          value={row.applicationStatus || ""}
-          onChange={(e) =>
-            onSelectChangeAndSave(row._id, "applicationStatus", e.target.value)
-          }
-          style={tableInputStyle}
-        >
+      <td style={{ ...tdStyle, width: columnWidths.status, background: rowColor }}>
+        <select value={row.applicationStatus || ""} onChange={(e) => onSelectChangeAndSave(row._id, "applicationStatus", e.target.value)} style={tableInputStyle}>
           {applicationStatusOptions.map((item) => (
             <option key={item} value={item}>
               {item || "Выбрать"}
@@ -389,37 +253,14 @@ const TableRow = React.memo(function TableRow({
           ))}
         </select>
       </td>
-
-      <td style={{ ...tdStyle, ...wDate, background: rowColor }}>
-        <input
-          type="date"
-          value={row.submitDate || ""}
-          onChange={(e) => onChange(row._id, "submitDate", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.date, background: rowColor }}>
+        <input type="date" value={row.submitDate || ""} onChange={(e) => onChange(row._id, "submitDate", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wAppNumber, background: rowColor }}>
-        <input
-          type="text"
-          value={row.applicationNumber || ""}
-          onChange={(e) =>
-            onChange(row._id, "applicationNumber", e.target.value)
-          }
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.appNumber, background: rowColor }}>
+        <input value={row.applicationNumber || ""} onChange={(e) => onChange(row._id, "applicationNumber", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wSpecialist, background: rowColor }}>
-        <select
-          value={row.specialist || ""}
-          onChange={(e) =>
-            onSelectChangeAndSave(row._id, "specialist", e.target.value)
-          }
-          style={tableInputStyle}
-        >
+      <td style={{ ...tdStyle, width: columnWidths.specialist, background: rowColor }}>
+        <select value={row.specialist || ""} onChange={(e) => onSelectChangeAndSave(row._id, "specialist", e.target.value)} style={tableInputStyle}>
           {specialistOptions.map((item) => (
             <option key={item} value={item}>
               {item || "Выбрать"}
@@ -427,53 +268,20 @@ const TableRow = React.memo(function TableRow({
           ))}
         </select>
       </td>
-
-      <td style={{ ...tdStyle, ...wSbkts, background: rowColor }}>
-        <input
-          type="text"
-          value={row.sbktsNumber || ""}
-          onChange={(e) => onChange(row._id, "sbktsNumber", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.sbkts, background: rowColor }}>
+        <input value={row.sbktsNumber || ""} onChange={(e) => onChange(row._id, "sbktsNumber", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wComment, background: rowColor }}>
-        <input
-          type="text"
-          value={row.comment || ""}
-          onChange={(e) => onChange(row._id, "comment", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.comment, background: rowColor }}>
+        <input value={row.comment || ""} onChange={(e) => onChange(row._id, "comment", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wSmallStatus, background: rowColor }}>
-        <input
-          type="text"
-          value={row.sbktsEptsStatus || ""}
-          onChange={(e) => onChange(row._id, "sbktsEptsStatus", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.smallStatus, background: rowColor }}>
+        <input value={row.sbktsEptsStatus || ""} onChange={(e) => onChange(row._id, "sbktsEptsStatus", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wSmallStatus, background: rowColor }}>
-        <input
-          type="text"
-          value={row.eptsStatus || ""}
-          onChange={(e) => onChange(row._id, "eptsStatus", e.target.value)}
-          onBlur={() => onBlurSave(row._id)}
-          style={tableInputStyle}
-        />
+      <td style={{ ...tdStyle, width: columnWidths.smallStatus, background: rowColor }}>
+        <input value={row.eptsStatus || ""} onChange={(e) => onChange(row._id, "eptsStatus", e.target.value)} onBlur={() => onBlurSave(row._id)} style={tableInputStyle} />
       </td>
-
-      <td style={{ ...tdStyle, ...wAction, background: rowColor }}>
-        <button
-          onClick={() => onClear(row)}
-          style={smallDeleteButtonStyle}
-          title={savingId === row._id ? "Сохраняется..." : "Очистить"}
-        >
+      <td style={{ ...tdStyle, width: columnWidths.action, background: rowColor }}>
+        <button onClick={() => onClear(row)} style={smallDeleteButtonStyle} title={savingId === row._id ? "Сохраняется..." : "Очистить"}>
           X
         </button>
       </td>
@@ -484,59 +292,43 @@ const TableRow = React.memo(function TableRow({
 export default function ExcelTable() {
   const [rows, setRows] = useState([]);
   const [journalRows, setJournalRows] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState(null);
   const [newRow, setNewRow] = useState(emptyRow);
-
-  const [selectedMonth, setSelectedMonth] = useState("all");
-  const [selectedYear, setSelectedYear] = useState("all");
-  const [selectedDay, setSelectedDay] = useState("all");
-
+  const [manualFormOpen, setManualFormOpen] = useState(false);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [dateFilter, setDateFilter] = useState(getInitialDateFilter);
   const [specialistOptions, setSpecialistOptions] = useState(() =>
     loadSavedOptions("journal_specialist_options", defaultSpecialistOptions)
   );
   const [brokerOptions, setBrokerOptions] = useState(() =>
     loadSavedOptions("journal_broker_options", defaultBrokerOptions)
   );
-
   const [newSpecialistName, setNewSpecialistName] = useState("");
   const [newBrokerName, setNewBrokerName] = useState("");
-
   const [selectedBrokerToDelete, setSelectedBrokerToDelete] = useState("");
-  const [selectedSpecialistToDelete, setSelectedSpecialistToDelete] =
-    useState("");
+  const [selectedSpecialistToDelete, setSelectedSpecialistToDelete] = useState("");
+  const [columnWidths, setColumnWidths] = useState(defaultColumnWidths);
+  const resizeStateRef = useRef({ key: "", startX: 0, startWidth: 0 });
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "journal_specialist_options",
-      JSON.stringify(specialistOptions)
-    );
-  }, [specialistOptions]);
-
-  useEffect(() => {
-    localStorage.setItem("journal_broker_options", JSON.stringify(brokerOptions));
-  }, [brokerOptions]);
-
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
+      const params = {
+        fromDate: dateFilter.fromDate || undefined,
+        toDate: dateFilter.toDate || undefined,
+      };
 
       const [appsRes, journalRes] = await Promise.all([
-        axios.get(`${API_URL}/api/applications`),
-        axios.get(`${API_URL}/api/table-journal`),
+        axios.get(`${API_URL}/api/applications`, { params }),
+        axios.get(`${API_URL}/api/table-journal`, { params }),
       ]);
 
       const apps = Array.isArray(appsRes.data) ? appsRes.data : [];
       const journal = Array.isArray(journalRes.data) ? journalRes.data : [];
-
       const merged = buildMergedRows(apps, journal);
-
       setJournalRows(journal);
       setRows(merged);
     } catch (error) {
@@ -545,38 +337,71 @@ export default function ExcelTable() {
     } finally {
       setLoading(false);
     }
+  }, [dateFilter.fromDate, dateFilter.toDate]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  useEffect(() => {
+    localStorage.setItem("journal_specialist_options", JSON.stringify(specialistOptions));
+  }, [specialistOptions]);
+
+  useEffect(() => {
+    localStorage.setItem("journal_broker_options", JSON.stringify(brokerOptions));
+  }, [brokerOptions]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      JOURNAL_DATE_FILTER_KEY,
+      JSON.stringify({
+        ...dateFilter,
+        savedForDay: getTodayKey(),
+      })
+    );
+  }, [dateFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rowsPerPage, search, dateFilter.fromDate, dateFilter.toDate]);
+
+  const onResizeStart = (key, event) => {
+    event.preventDefault();
+    resizeStateRef.current = {
+      key,
+      startX: event.clientX,
+      startWidth: columnWidths[key] || 100,
+    };
+
+    const onMouseMove = (moveEvent) => {
+      const delta = moveEvent.clientX - resizeStateRef.current.startX;
+      const nextWidth = Math.max(56, resizeStateRef.current.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [key]: nextWidth }));
+    };
+
+    const onMouseUp = () => {
+      resizeStateRef.current = { key: "", startX: 0, startWidth: 0 };
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   };
 
   const filteredRows = useMemo(() => {
     let result = [...rows];
 
-    if (
-      selectedMonth !== "all" ||
-      selectedYear !== "all" ||
-      selectedDay !== "all"
-    ) {
+    if (dateFilter.fromDate || dateFilter.toDate) {
       result = result.filter((row) => {
         if (!row.submitDate) return false;
-
-        const parts = row.submitDate.split("-");
-        if (parts.length < 3) return false;
-
-        const year = parts[0];
-        const month = parts[1];
-        const day = parts[2];
-
-        const monthMatch =
-          selectedMonth === "all" ? true : month === selectedMonth;
-        const yearMatch =
-          selectedYear === "all" ? true : year === selectedYear;
-        const dayMatch = selectedDay === "all" ? true : day === selectedDay;
-
-        return monthMatch && yearMatch && dayMatch;
+        if (dateFilter.fromDate && row.submitDate < dateFilter.fromDate) return false;
+        if (dateFilter.toDate && row.submitDate > dateFilter.toDate) return false;
+        return true;
       });
     }
 
-    const q = search.toLowerCase().trim();
-
+    const q = search.trim().toLowerCase();
     if (q) {
       result = result.filter((row) =>
         [
@@ -604,12 +429,53 @@ export default function ExcelTable() {
     }
 
     return addDailyNumeration(result);
-  }, [rows, search, selectedMonth, selectedYear, selectedDay]);
+  }, [rows, search, dateFilter.fromDate, dateFilter.toDate]);
+
+  const dailyStats = useMemo(() => {
+    const normalize = (value) => String(value || "").toLowerCase();
+    const total = filteredRows.length;
+    const inProgress = filteredRows.filter((row) => {
+      const status = normalize(row.applicationStatus);
+      return (
+        status.includes("выполняется") ||
+        status.includes("в работе") ||
+        status.includes("рассмотр") ||
+        status.includes("одобр")
+      );
+    }).length;
+    const waitingCall = filteredRows.filter((row) =>
+      normalize(row.applicationStatus).includes("прозвона нет")
+    ).length;
+    const waitingPhoto = filteredRows.filter((row) =>
+      normalize(row.applicationStatus).includes("ждем фото")
+    ).length;
+    const released = filteredRows.filter((row) => {
+      const status = normalize(row.applicationStatus);
+      return status.includes("выпуск готов") || status === "готова" || status === "готово";
+    }).length;
+
+    return { total, inProgress, waitingCall, waitingPhoto, released };
+  }, [filteredRows]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * rowsPerPage;
+  const paginatedRows = filteredRows.slice(startIndex, startIndex + rowsPerPage);
+
+  const syncApplicationStatus = async (row) => {
+    if (row.rowType !== "application") return;
+    try {
+      await axios.patch(`${API_URL}/api/applications/${row._id}/status`, {
+        status1: row.applicationStatus || "",
+      });
+    } catch (error) {
+      console.error("Не удалось обновить статус заявки:", error);
+    }
+  };
 
   const saveRow = async (row) => {
     try {
       setSavingId(row._id);
-
       const payload = {
         applicationId: row.rowType === "application" ? row._id : "",
         number: row.number || "",
@@ -630,25 +496,15 @@ export default function ExcelTable() {
         eptsStatus: row.eptsStatus || "",
       };
 
-      let saved;
+      const saved = row.journalId
+        ? (await axios.put(`${API_URL}/api/table-journal/${row.journalId}`, payload)).data
+        : (await axios.post(`${API_URL}/api/table-journal`, payload)).data;
 
-      if (row.journalId) {
-        const res = await axios.put(
-          `${API_URL}/api/table-journal/${row.journalId}`,
-          payload
-        );
-        saved = res.data;
-      } else {
-        const res = await axios.post(`${API_URL}/api/table-journal`, payload);
-        saved = res.data;
-      }
+      await syncApplicationStatus(row);
 
       setJournalRows((prev) => {
         const exists = prev.some((item) => item._id === saved._id);
-        if (exists) {
-          return prev.map((item) => (item._id === saved._id ? saved : item));
-        }
-        return [saved, ...prev];
+        return exists ? prev.map((item) => (item._id === saved._id ? saved : item)) : [saved, ...prev];
       });
 
       setRows((prev) =>
@@ -667,8 +523,8 @@ export default function ExcelTable() {
     } catch (error) {
       console.error("Ошибка сохранения:", error);
       alert(
-        error.response?.data?.error ||
-          error.response?.data?.message ||
+        error?.response?.data?.error ||
+          error?.response?.data?.message ||
           "Не удалось сохранить запись"
       );
     } finally {
@@ -676,60 +532,36 @@ export default function ExcelTable() {
     }
   };
 
-  const handleChange = React.useCallback((id, field, value) => {
-    setRows((prev) =>
-      prev.map((row) => (row._id === id ? { ...row, [field]: value } : row))
-    );
-  }, []);
+  const handleChange = (id, field, value) => {
+    setRows((prev) => prev.map((row) => (row._id === id ? { ...row, [field]: value } : row)));
+  };
 
-  const handleBlurSave = React.useCallback(
-    (id) => {
-      setRows((prev) => {
-        const row = prev.find((item) => item._id === id);
-        if (row) {
-          Promise.resolve().then(() => saveRow(row));
-        }
-        return prev;
-      });
-    },
-    []
-  );
-
-  const handleSelectChangeAndSave = React.useCallback((id, field, value) => {
+  const handleBlurSave = (id) => {
     setRows((prev) => {
-      const updated = prev.map((row) =>
-        row._id === id ? { ...row, [field]: value } : row
-      );
+      const row = prev.find((item) => item._id === id);
+      if (row) Promise.resolve().then(() => saveRow(row));
+      return prev;
+    });
+  };
 
+  const handleSelectChangeAndSave = (id, field, value) => {
+    setRows((prev) => {
+      const updated = prev.map((row) => (row._id === id ? { ...row, [field]: value } : row));
       const changedRow = updated.find((row) => row._id === id);
-      if (changedRow) {
-        setTimeout(() => saveRow(changedRow), 0);
-      }
-
+      if (changedRow) setTimeout(() => saveRow(changedRow), 0);
       return updated;
     });
-  }, []);
+  };
 
   const handleNewRowChange = (field, value) => {
-    setNewRow((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setNewRow((prev) => ({ ...prev, [field]: value }));
   };
 
   const addSpecialistOption = () => {
     const name = newSpecialistName.trim();
     if (!name) return;
-
-    const exists = specialistOptions.some(
-      (item) => item.toLowerCase() === name.toLowerCase()
-    );
-
-    if (exists) {
-      alert("Такой специалист уже есть в списке");
-      return;
-    }
-
+    const exists = specialistOptions.some((item) => item.toLowerCase() === name.toLowerCase());
+    if (exists) return alert("Такой специалист уже есть");
     setSpecialistOptions((prev) => [...prev, name]);
     setNewSpecialistName("");
   };
@@ -737,16 +569,8 @@ export default function ExcelTable() {
   const addBrokerOption = () => {
     const name = newBrokerName.trim();
     if (!name) return;
-
-    const exists = brokerOptions.some(
-      (item) => item.toLowerCase() === name.toLowerCase()
-    );
-
-    if (exists) {
-      alert("Такой брокер уже есть в списке");
-      return;
-    }
-
+    const exists = brokerOptions.some((item) => item.toLowerCase() === name.toLowerCase());
+    if (exists) return alert("Такой брокер уже есть");
     setBrokerOptions((prev) => [...prev, name]);
     setNewBrokerName("");
   };
@@ -754,111 +578,44 @@ export default function ExcelTable() {
   const deleteBrokerOption = () => {
     const name = selectedBrokerToDelete.trim();
     if (!name) return;
-
-    const protectedNames = defaultBrokerOptions.filter(Boolean);
-    if (protectedNames.includes(name)) {
-      alert("Стандартного брокера удалять нельзя");
-      return;
-    }
-
+    if (defaultBrokerOptions.includes(name)) return alert("Стандартного брокера удалять нельзя");
     setBrokerOptions((prev) => prev.filter((item) => item !== name));
-
-    setRows((prev) =>
-      prev.map((row) => (row.broker === name ? { ...row, broker: "" } : row))
-    );
-
-    setNewRow((prev) => (prev.broker === name ? { ...prev, broker: "" } : prev));
-
+    setRows((prev) => prev.map((row) => (row.broker === name ? { ...row, broker: "" } : row)));
     setSelectedBrokerToDelete("");
   };
 
   const deleteSpecialistOption = () => {
     const name = selectedSpecialistToDelete.trim();
     if (!name) return;
-
-    const protectedNames = defaultSpecialistOptions.filter(Boolean);
-    if (protectedNames.includes(name)) {
-      alert("Стандартного специалиста удалять нельзя");
-      return;
-    }
-
+    if (defaultSpecialistOptions.includes(name)) return alert("Стандартного специалиста удалять нельзя");
     setSpecialistOptions((prev) => prev.filter((item) => item !== name));
-
     setRows((prev) =>
-      prev.map((row) =>
-        row.specialist === name ? { ...row, specialist: "" } : row
-      )
+      prev.map((row) => (row.specialist === name ? { ...row, specialist: "" } : row))
     );
-
-    setNewRow((prev) =>
-      prev.specialist === name ? { ...prev, specialist: "" } : prev
-    );
-
     setSelectedSpecialistToDelete("");
   };
 
   const addManualRow = async () => {
     try {
-      const payload = {
-        applicationId: "",
-        number: newRow.number || "",
-        fio: newRow.fio || "",
-        type: newRow.type || "",
-        brand: newRow.brand || "",
-        model: newRow.model || "",
-        color: newRow.color || "",
-        vinCode: newRow.vinCode || "",
-        broker: newRow.broker || "",
-        applicationStatus: newRow.applicationStatus || "",
-        submitDate: newRow.submitDate || "",
-        applicationNumber: newRow.applicationNumber || "",
-        specialist: newRow.specialist || "",
-        sbktsNumber: newRow.sbktsNumber || "",
-        comment: newRow.comment || "",
-        sbktsEptsStatus: newRow.sbktsEptsStatus || "",
-        eptsStatus: newRow.eptsStatus || "",
-      };
-
-      const res = await axios.post(`${API_URL}/api/table-journal`, payload);
-
+      const payload = { applicationId: "", ...newRow };
+      const saved = (await axios.post(`${API_URL}/api/table-journal`, payload)).data;
       const created = {
-        _id: `manual-${res.data._id}`,
-        journalId: res.data._id,
+        _id: `manual-${saved._id}`,
+        journalId: saved._id,
         rowType: "manual",
-        createdAt: res.data.createdAt || "",
-
-        number: res.data.number || "",
-        fio: res.data.fio || "",
-        type: res.data.type || "",
-        brand: res.data.brand || "",
-        model: res.data.model || "",
-        color: res.data.color || "",
-        vinCode: res.data.vinCode || "",
-        broker: res.data.broker || "",
-        applicationStatus: res.data.applicationStatus || "",
-        submitDate: res.data.submitDate || "",
-        applicationNumber: res.data.applicationNumber || "",
-        specialist: res.data.specialist || "",
-        sbktsNumber: res.data.sbktsNumber || "",
-        comment: res.data.comment || "",
-        sbktsEptsStatus: res.data.sbktsEptsStatus || "",
-        eptsStatus: res.data.eptsStatus || "",
+        createdAt: saved.createdAt || "",
+        ...saved,
       };
-
-      setJournalRows((prev) => [res.data, ...prev]);
+      setJournalRows((prev) => [saved, ...prev]);
       setRows((prev) => sortRowsByDateDesc([created, ...prev]));
       setNewRow(emptyRow);
     } catch (error) {
       console.error("Ошибка добавления:", error);
-      alert(
-        error.response?.data?.error ||
-          error.response?.data?.message ||
-          "Не удалось добавить запись"
-      );
+      alert(error?.response?.data?.message || "Не удалось добавить запись");
     }
   };
 
-  const clearJournalFields = React.useCallback(async (row) => {
+  const clearJournalFields = async (row) => {
     try {
       if (!row.journalId) {
         setRows((prev) =>
@@ -878,546 +635,220 @@ export default function ExcelTable() {
       }
 
       await axios.delete(`${API_URL}/api/table-journal/${row.journalId}`);
-
-      setJournalRows((prev) =>
-        prev.filter((item) => item._id !== row.journalId)
-      );
+      setJournalRows((prev) => prev.filter((item) => item._id !== row.journalId));
 
       if (row.rowType === "manual") {
         setRows((prev) => prev.filter((item) => item._id !== row._id));
-        return;
+      } else {
+        setRows((prev) =>
+          prev.map((item) =>
+            item._id === row._id
+              ? {
+                  ...item,
+                  journalId: null,
+                  sbktsNumber: "",
+                  comment: "",
+                  sbktsEptsStatus: "",
+                  eptsStatus: "",
+                }
+              : item
+          )
+        );
       }
-
-      setRows((prev) =>
-        prev.map((item) =>
-          item._id === row._id
-            ? {
-                ...item,
-                journalId: null,
-                sbktsNumber: "",
-                comment: "",
-                sbktsEptsStatus: "",
-                eptsStatus: "",
-              }
-            : item
-        )
-      );
     } catch (error) {
       console.error("Ошибка очистки:", error);
-      alert(
-        error.response?.data?.error ||
-          error.response?.data?.message ||
-          "Не удалось очистить запись"
-      );
+      alert(error?.response?.data?.message || "Не удалось очистить запись");
     }
-  }, []);
+  };
 
   const exportToExcel = () => {
     const dataForExcel = filteredRows.map((row) => ({
-      "Нумерация": row.dailyNumeration,
-      "НОМЕР": row.number,
-      "ФИО": row.fio,
-      "Тип": row.type,
+      Нумерация: row.dailyNumeration,
+      НОМЕР: row.number,
+      ФИО: row.fio,
+      Тип: row.type,
       "МАРКА / МОДЕЛЬ": `${row.brand || ""} ${row.model || ""}`.trim(),
-      "ЦВЕТ": row.color,
+      ЦВЕТ: row.color,
       "VIN КОД": row.vinCode,
-      "БРОКЕР": row.broker,
+      БРОКЕР: row.broker,
       "Статус ЗАЯВКИ": row.applicationStatus,
       "Дата ПОДАЧИ": row.submitDate,
       "НОМЕР ЗАЯВКИ": row.applicationNumber,
-      "СПЕЦИАЛИСТ": row.specialist,
+      СПЕЦИАЛИСТ: row.specialist,
       "Номер СБКТС": row.sbktsNumber,
-      "Комментарий": row.comment,
+      Комментарий: row.comment,
       "Статус СБКТС в ЭПТС": row.sbktsEptsStatus,
       "Статус ЭПТС": row.eptsStatus,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
     const workbook = XLSX.utils.book_new();
-
     XLSX.utils.book_append_sheet(workbook, worksheet, "Таблица заявок");
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const fileData = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
     });
-
     saveAs(fileData, "table_journal.xlsx");
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f4f6f8",
-        padding: "56px 10px 16px",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          margin: "0 auto",
-        }}
-      >
-        <div
-          style={{
-            background: "#fff",
-            border: "1px solid #d0d7de",
-            borderRadius: "10px",
-            padding: "12px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "12px",
-              flexWrap: "wrap",
-              marginBottom: "16px",
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: "20px" }}>Таблица заявок</h2>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-                flexWrap: "wrap",
-                alignItems: "center",
-              }}
-            >
-              <input
-                type="text"
-                placeholder="Поиск..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  ...inputStyle,
-                  width: "260px",
-                }}
-              />
-
-              <button
-                onClick={exportToExcel}
-                style={{
-                  ...primaryButtonStyle,
-                  background: "#2e7d32",
-                }}
-              >
-                Скачать Excel
-              </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-              marginBottom: "16px",
-            }}
-          >
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              style={filterSelectStyle}
-            >
-              {monthOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              style={filterSelectStyle}
-            >
-              {yearOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedDay}
-              onChange={(e) => setSelectedDay(e.target.value)}
-              style={filterSelectStyle}
-            >
-              {dayOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-
-            <button
-              onClick={() => {
-                setSelectedMonth("all");
-                setSelectedYear("all");
-                setSelectedDay("all");
-              }}
-              style={secondaryButtonStyle}
-            >
-              Сбросить фильтр
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <div style={topLineStyle}>
+          <h2 style={{ margin: 0 }}>Журнал заявок</h2>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <input
+              type="text"
+              placeholder="Поиск..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ ...inputStyle, width: 280 }}
+            />
+            <button onClick={exportToExcel} style={{ ...primaryButtonStyle, background: "#2e7d32" }}>
+              Скачать Excel
             </button>
           </div>
+        </div>
 
-          <div
-            style={{
-              border: "1px solid #d6dbe1",
-              borderRadius: "8px",
-              padding: "10px",
-              marginBottom: "16px",
-              background: "#fafbfc",
-            }}
+        <div style={kpiGridStyle}>
+          <div style={kpiCardStyle}><div style={kpiTitleStyle}>Всего заявок</div><div style={kpiValueStyle}>{dailyStats.total}</div></div>
+          <div style={kpiCardStyle}><div style={kpiTitleStyle}>В процессе</div><div style={kpiValueStyle}>{dailyStats.inProgress}</div></div>
+          <div style={kpiCardStyle}><div style={kpiTitleStyle}>Ожидают звонка</div><div style={kpiValueStyle}>{dailyStats.waitingCall}</div></div>
+          <div style={kpiCardStyle}><div style={kpiTitleStyle}>Ожидают фото</div><div style={kpiValueStyle}>{dailyStats.waitingPhoto}</div></div>
+          <div style={kpiCardStyle}><div style={kpiTitleStyle}>Выпущены</div><div style={kpiValueStyle}>{dailyStats.released}</div></div>
+        </div>
+
+        <div style={filtersStyle}>
+          <label style={filterLabelStyle}>
+            C даты
+            <input
+              type="date"
+              value={dateFilter.fromDate}
+              onChange={(e) => setDateFilter((prev) => ({ ...prev, fromDate: e.target.value }))}
+              style={inputStyle}
+            />
+          </label>
+          <label style={filterLabelStyle}>
+            По дату
+            <input
+              type="date"
+              value={dateFilter.toDate}
+              onChange={(e) => setDateFilter((prev) => ({ ...prev, toDate: e.target.value }))}
+              style={inputStyle}
+            />
+          </label>
+          <button
+            onClick={() => setDateFilter({ fromDate: "", toDate: "" })}
+            style={secondaryButtonStyle}
           >
-            <div
-              style={{
-                fontWeight: "700",
-                marginBottom: "10px",
-                fontSize: "15px",
-              }}
-            >
-              Добавить заявку вручную
+            Сбросить фильтр
+          </button>
+          <button onClick={() => setManualFormOpen((prev) => !prev)} style={primaryButtonStyle}>
+            {manualFormOpen ? "Скрыть ручное добавление" : "Добавить заявку вручную"}
+          </button>
+        </div>
+
+        {manualFormOpen && (
+          <div style={manualCardStyle}>
+            <div style={manualGridStyle}>
+              <input placeholder="НОМЕР" value={newRow.number} onChange={(e) => handleNewRowChange("number", e.target.value)} style={inputStyle} />
+              <input placeholder="ФИО" value={newRow.fio} onChange={(e) => handleNewRowChange("fio", e.target.value)} style={inputStyle} />
+              <input placeholder="Тип" value={newRow.type} onChange={(e) => handleNewRowChange("type", e.target.value)} style={inputStyle} />
+              <input placeholder="МАРКА" value={newRow.brand} onChange={(e) => handleNewRowChange("brand", e.target.value)} style={inputStyle} />
+              <input placeholder="МОДЕЛЬ" value={newRow.model} onChange={(e) => handleNewRowChange("model", e.target.value)} style={inputStyle} />
+              <input placeholder="ЦВЕТ" value={newRow.color} onChange={(e) => handleNewRowChange("color", e.target.value)} style={inputStyle} />
+              <input placeholder="VIN" value={newRow.vinCode} onChange={(e) => handleNewRowChange("vinCode", e.target.value)} style={inputStyle} />
+              <select value={newRow.broker} onChange={(e) => handleNewRowChange("broker", e.target.value)} style={inputStyle}>
+                {brokerOptions.map((item) => <option key={item} value={item}>{item || "Брокер"}</option>)}
+              </select>
+              <select value={newRow.applicationStatus} onChange={(e) => handleNewRowChange("applicationStatus", e.target.value)} style={inputStyle}>
+                {applicationStatusOptions.map((item) => <option key={item} value={item}>{item || "Статус"}</option>)}
+              </select>
+              <input type="date" value={newRow.submitDate} onChange={(e) => handleNewRowChange("submitDate", e.target.value)} style={inputStyle} />
+              <input placeholder="Номер заявки" value={newRow.applicationNumber} onChange={(e) => handleNewRowChange("applicationNumber", e.target.value)} style={inputStyle} />
+              <select value={newRow.specialist} onChange={(e) => handleNewRowChange("specialist", e.target.value)} style={inputStyle}>
+                {specialistOptions.map((item) => <option key={item} value={item}>{item || "Специалист"}</option>)}
+              </select>
+              <input placeholder="Номер СБКТС" value={newRow.sbktsNumber} onChange={(e) => handleNewRowChange("sbktsNumber", e.target.value)} style={inputStyle} />
+              <input placeholder="Комментарий" value={newRow.comment} onChange={(e) => handleNewRowChange("comment", e.target.value)} style={inputStyle} />
+              <input placeholder="Статус СБКТС в ЭПТС" value={newRow.sbktsEptsStatus} onChange={(e) => handleNewRowChange("sbktsEptsStatus", e.target.value)} style={inputStyle} />
+              <input placeholder="Статус ЭПТС" value={newRow.eptsStatus} onChange={(e) => handleNewRowChange("eptsStatus", e.target.value)} style={inputStyle} />
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
-                gap: "8px",
-              }}
-            >
-              <input
-                type="text"
-                placeholder="НОМЕР"
-                value={newRow.number}
-                onChange={(e) => handleNewRowChange("number", e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="ФИО"
-                value={newRow.fio}
-                onChange={(e) => handleNewRowChange("fio", e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="Тип"
-                value={newRow.type}
-                onChange={(e) => handleNewRowChange("type", e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="МАРКА"
-                value={newRow.brand}
-                onChange={(e) => handleNewRowChange("brand", e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="МОДЕЛЬ"
-                value={newRow.model}
-                onChange={(e) => handleNewRowChange("model", e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="ЦВЕТ"
-                value={newRow.color}
-                onChange={(e) => handleNewRowChange("color", e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="VIN КОД"
-                value={newRow.vinCode}
-                onChange={(e) => handleNewRowChange("vinCode", e.target.value)}
-                style={inputStyle}
-              />
-
-              <select
-                value={newRow.broker}
-                onChange={(e) => handleNewRowChange("broker", e.target.value)}
-                style={inputStyle}
-              >
-                {brokerOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item || "Брокер"}
-                  </option>
-                ))}
-              </select>
-
-              <div style={{ display: "flex", gap: "8px" }}>
-                <input
-                  type="text"
-                  placeholder="Добавить брокера"
-                  value={newBrokerName}
-                  onChange={(e) => setNewBrokerName(e.target.value)}
-                  style={inputStyle}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addBrokerOption();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={addBrokerOption}
-                  style={smallAddButtonStyle}
-                >
-                  +
-                </button>
-              </div>
-
-              <div style={{ display: "flex", gap: "8px" }}>
-                <select
-                  value={selectedBrokerToDelete}
-                  onChange={(e) => setSelectedBrokerToDelete(e.target.value)}
-                  style={inputStyle}
-                >
+            <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input placeholder="Добавить брокера" value={newBrokerName} onChange={(e) => setNewBrokerName(e.target.value)} style={inputStyle} />
+                <button onClick={addBrokerOption} style={smallAddButtonStyle}>+</button>
+                <select value={selectedBrokerToDelete} onChange={(e) => setSelectedBrokerToDelete(e.target.value)} style={inputStyle}>
                   <option value="">Удалить брокера</option>
-                  {brokerOptions
-                    .filter((item) => item && !defaultBrokerOptions.includes(item))
-                    .map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
+                  {brokerOptions.filter((item) => item && !defaultBrokerOptions.includes(item)).map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
                 </select>
-
-                <button
-                  type="button"
-                  onClick={deleteBrokerOption}
-                  style={smallRemoveButtonStyle}
-                >
-                  −
-                </button>
+                <button onClick={deleteBrokerOption} style={smallRemoveButtonStyle}>−</button>
               </div>
-
-              <select
-                value={newRow.applicationStatus}
-                onChange={(e) =>
-                  handleNewRowChange("applicationStatus", e.target.value)
-                }
-                style={inputStyle}
-              >
-                {applicationStatusOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item || "Статус заявки"}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                type="date"
-                value={newRow.submitDate}
-                onChange={(e) =>
-                  handleNewRowChange("submitDate", e.target.value)
-                }
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="НОМЕР ЗАЯВКИ"
-                value={newRow.applicationNumber}
-                onChange={(e) =>
-                  handleNewRowChange("applicationNumber", e.target.value)
-                }
-                style={inputStyle}
-              />
-
-              <select
-                value={newRow.specialist}
-                onChange={(e) =>
-                  handleNewRowChange("specialist", e.target.value)
-                }
-                style={inputStyle}
-              >
-                {specialistOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item || "Специалист"}
-                  </option>
-                ))}
-              </select>
-
-              <div style={{ display: "flex", gap: "8px" }}>
-                <input
-                  type="text"
-                  placeholder="Добавить специалиста"
-                  value={newSpecialistName}
-                  onChange={(e) => setNewSpecialistName(e.target.value)}
-                  style={inputStyle}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addSpecialistOption();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={addSpecialistOption}
-                  style={smallAddButtonStyle}
-                >
-                  +
-                </button>
-              </div>
-
-              <div style={{ display: "flex", gap: "8px" }}>
-                <select
-                  value={selectedSpecialistToDelete}
-                  onChange={(e) => setSelectedSpecialistToDelete(e.target.value)}
-                  style={inputStyle}
-                >
+              <div style={{ display: "flex", gap: 8 }}>
+                <input placeholder="Добавить специалиста" value={newSpecialistName} onChange={(e) => setNewSpecialistName(e.target.value)} style={inputStyle} />
+                <button onClick={addSpecialistOption} style={smallAddButtonStyle}>+</button>
+                <select value={selectedSpecialistToDelete} onChange={(e) => setSelectedSpecialistToDelete(e.target.value)} style={inputStyle}>
                   <option value="">Удалить специалиста</option>
-                  {specialistOptions
-                    .filter(
-                      (item) => item && !defaultSpecialistOptions.includes(item)
-                    )
-                    .map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
+                  {specialistOptions.filter((item) => item && !defaultSpecialistOptions.includes(item)).map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
                 </select>
-
-                <button
-                  type="button"
-                  onClick={deleteSpecialistOption}
-                  style={smallRemoveButtonStyle}
-                >
-                  −
-                </button>
+                <button onClick={deleteSpecialistOption} style={smallRemoveButtonStyle}>−</button>
               </div>
-
-              <input
-                type="text"
-                placeholder="Номер СБКТС"
-                value={newRow.sbktsNumber}
-                onChange={(e) =>
-                  handleNewRowChange("sbktsNumber", e.target.value)
-                }
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="Комментарий"
-                value={newRow.comment}
-                onChange={(e) => handleNewRowChange("comment", e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="Статус СБКТС в ЭПТС"
-                value={newRow.sbktsEptsStatus}
-                onChange={(e) =>
-                  handleNewRowChange("sbktsEptsStatus", e.target.value)
-                }
-                style={inputStyle}
-              />
-
-              <input
-                type="text"
-                placeholder="Статус ЭПТС"
-                value={newRow.eptsStatus}
-                onChange={(e) =>
-                  handleNewRowChange("eptsStatus", e.target.value)
-                }
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ marginTop: "10px" }}>
-              <button onClick={addManualRow} style={primaryButtonStyle}>
-                Добавить запись
-              </button>
+              <div>
+                <button onClick={addManualRow} style={primaryButtonStyle}>Добавить запись</button>
+              </div>
             </div>
           </div>
+        )}
 
-          {loading ? (
-            <div style={{ padding: "20px", textAlign: "center" }}>
-              Загрузка...
-            </div>
-          ) : (
+        {loading ? (
+          <div style={{ padding: 20, textAlign: "center" }}>Загрузка...</div>
+        ) : (
+          <>
             <div style={tableContainerStyle}>
               <table style={tableStyle}>
                 <thead>
                   <tr>
-                    <th style={{ ...thStyle, ...wNum }}>Нум.</th>
-                    <th style={{ ...thStyle, ...wNumber }}>Номер</th>
-                    <th style={{ ...thStyle, ...wFio }}>ФИО</th>
-                    <th style={{ ...thStyle, ...wType }}>Тип</th>
-                    <th style={{ ...thStyle, ...wBrandModel }}>
-                      Марка / Модель
-                    </th>
-                    <th style={{ ...thStyle, ...wColor }}>Цвет</th>
-                    <th style={{ ...thStyle, ...wVin }}>VIN код</th>
-                    <th style={{ ...thStyle, ...wBroker }}>Брокер</th>
-                    <th style={{ ...thStyle, ...wStatus }}>Статус заявки</th>
-                    <th style={{ ...thStyle, ...wDate }}>Дата подачи</th>
-                    <th style={{ ...thStyle, ...wAppNumber }}>
-                      Номер заявки
-                    </th>
-                    <th style={{ ...thStyle, ...wSpecialist }}>
-                      Специалист
-                    </th>
-                    <th style={{ ...thStyle, ...wSbkts }}>Номер СБКТС</th>
-                    <th style={{ ...thStyle, ...wComment }}>Комментарий</th>
-                    <th style={{ ...thStyle, ...wSmallStatus }}>
-                      Статус СБКТС в ЭПТС
-                    </th>
-                    <th style={{ ...thStyle, ...wSmallStatus }}>
-                      Статус ЭПТС
-                    </th>
-                    <th style={{ ...thStyle, ...wAction }}>Очист.</th>
+                    <HeaderCell label="Нум." widthKey="num" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Номер" widthKey="number" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="ФИО" widthKey="fio" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Тип" widthKey="type" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Марка / Модель" widthKey="brandModel" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Цвет" widthKey="color" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="VIN код" widthKey="vin" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Брокер" widthKey="broker" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Статус заявки" widthKey="status" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Дата подачи" widthKey="date" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Номер заявки" widthKey="appNumber" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Специалист" widthKey="specialist" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Номер СБКТС" widthKey="sbkts" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Комментарий" widthKey="comment" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Статус СБКТС в ЭПТС" widthKey="smallStatus" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Статус ЭПТС" widthKey="smallStatus" columnWidths={columnWidths} onResizeStart={onResizeStart} />
+                    <HeaderCell label="Очист." widthKey="action" columnWidths={columnWidths} onResizeStart={onResizeStart} />
                   </tr>
                 </thead>
-
                 <tbody>
-                  {filteredRows.length > 0 ? (
-                    filteredRows.map((row) => {
-                      const rowColor = getRowStatusColor(row.applicationStatus);
-
-                      return (
-                        <TableRow
-                          key={row._id}
-                          row={row}
-                          rowColor={rowColor}
-                          brokerOptions={brokerOptions}
-                          specialistOptions={specialistOptions}
-                          applicationStatusOptions={applicationStatusOptions}
-                          savingId={savingId}
-                          onChange={handleChange}
-                          onBlurSave={handleBlurSave}
-                          onSelectChangeAndSave={handleSelectChangeAndSave}
-                          onClear={clearJournalFields}
-                        />
-                      );
-                    })
+                  {paginatedRows.length > 0 ? (
+                    paginatedRows.map((row) => (
+                      <TableRow
+                        key={row._id}
+                        row={row}
+                        rowColor={getRowStatusColor(row.applicationStatus)}
+                        columnWidths={columnWidths}
+                        brokerOptions={brokerOptions}
+                        specialistOptions={specialistOptions}
+                        savingId={savingId}
+                        onChange={handleChange}
+                        onBlurSave={handleBlurSave}
+                        onSelectChangeAndSave={handleSelectChangeAndSave}
+                        onClear={clearJournalFields}
+                      />
+                    ))
                   ) : (
                     <tr>
                       <td colSpan={17} style={emptyStyle}>
@@ -1428,18 +859,74 @@ export default function ExcelTable() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+
+            <div style={paginationStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span>Показывать:</span>
+                <select value={rowsPerPage} onChange={(e) => setRowsPerPage(Number(e.target.value))} style={inputStyle}>
+                  {[10, 20, 30, 50, 100].map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button disabled={safePage <= 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} style={secondaryButtonStyle}>Назад</button>
+                <span>Страница {safePage} / {totalPages}</span>
+                <button disabled={safePage >= totalPages} onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} style={secondaryButtonStyle}>Вперед</button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
+const pageStyle = {
+  minHeight: "100vh",
+  padding: "16px",
+  background: "#f4f6f8",
+};
+
+const cardStyle = {
+  background: "#fff",
+  border: "1px solid #d0d7de",
+  borderRadius: 12,
+  padding: 12,
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+};
+
+const topLineStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 12,
+};
+
+const filtersStyle = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  marginBottom: 12,
+  alignItems: "flex-end",
+};
+
+const filterLabelStyle = {
+  display: "grid",
+  gap: 6,
+  fontSize: 13,
+  color: "#3d4b5e",
+};
+
 const inputStyle = {
   padding: "9px 10px",
   border: "1px solid #c5ccd3",
-  borderRadius: "8px",
-  fontSize: "13px",
+  borderRadius: 8,
+  fontSize: 13,
   outline: "none",
   boxSizing: "border-box",
   width: "100%",
@@ -1449,81 +936,73 @@ const tableInputStyle = {
   width: "100%",
   padding: "6px 7px",
   border: "1px solid #cfd6dd",
-  borderRadius: "5px",
-  fontSize: "12px",
+  borderRadius: 5,
+  fontSize: 12,
   boxSizing: "border-box",
-  background: "#fff",
-};
-
-const filterSelectStyle = {
-  padding: "9px 10px",
-  border: "1px solid #c5ccd3",
-  borderRadius: "8px",
-  fontSize: "13px",
   background: "#fff",
 };
 
 const primaryButtonStyle = {
   padding: "10px 14px",
   border: "none",
-  borderRadius: "8px",
+  borderRadius: 8,
   background: "#1976d2",
   color: "#fff",
   cursor: "pointer",
-  fontWeight: "600",
+  fontWeight: 600,
 };
 
 const secondaryButtonStyle = {
   padding: "10px 14px",
   border: "1px solid #c5ccd3",
-  borderRadius: "8px",
+  borderRadius: 8,
   background: "#fff",
   color: "#333",
   cursor: "pointer",
-  fontWeight: "600",
+  fontWeight: 600,
 };
 
 const smallAddButtonStyle = {
-  minWidth: "42px",
+  minWidth: 42,
   padding: "0 12px",
   border: "none",
-  borderRadius: "8px",
+  borderRadius: 8,
   background: "#1976d2",
   color: "#fff",
   cursor: "pointer",
-  fontWeight: "700",
-  fontSize: "18px",
+  fontWeight: 700,
+  fontSize: 18,
 };
 
 const smallRemoveButtonStyle = {
-  minWidth: "42px",
+  minWidth: 42,
   padding: "0 12px",
   border: "none",
-  borderRadius: "8px",
+  borderRadius: 8,
   background: "#d32f2f",
   color: "#fff",
   cursor: "pointer",
-  fontWeight: "700",
-  fontSize: "18px",
+  fontWeight: 700,
+  fontSize: 18,
 };
 
 const smallDeleteButtonStyle = {
   width: "100%",
   padding: "7px 6px",
   border: "none",
-  borderRadius: "6px",
+  borderRadius: 6,
   background: "#d32f2f",
   color: "#fff",
   cursor: "pointer",
-  fontWeight: "700",
-  fontSize: "12px",
+  fontWeight: 700,
+  fontSize: 12,
 };
 
 const tableContainerStyle = {
   width: "100%",
-  overflowX: "hidden",
+  overflowX: "auto",
   overflowY: "auto",
-  maxHeight: "calc(100vh - 280px)",
+  maxHeight: "calc(100vh - 330px)",
   border: "1px solid #c9d1d9",
   background: "#fff",
 };
@@ -1532,51 +1011,100 @@ const tableStyle = {
   width: "100%",
   tableLayout: "fixed",
   borderCollapse: "collapse",
-  fontSize: "12px",
+  fontSize: 12,
 };
 
 const thStyle = {
   border: "1px solid #bfc5cc",
   padding: "8px 6px",
   textAlign: "center",
-  fontWeight: "700",
-  fontSize: "11px",
-  lineHeight: "1.1",
-  whiteSpace: "normal",
-  wordBreak: "break-word",
+  fontWeight: 700,
+  fontSize: 11,
+  lineHeight: 1.1,
   background: "#e9edf2",
   position: "sticky",
   top: 0,
   zIndex: 5,
 };
 
+const thContentStyle = {
+  position: "relative",
+  minHeight: 16,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  paddingRight: 8,
+};
+
+const resizerStyle = {
+  position: "absolute",
+  top: -8,
+  right: -6,
+  width: 10,
+  height: 26,
+  cursor: "col-resize",
+  borderRight: "2px solid rgba(25, 118, 210, 0.35)",
+};
+
 const tdStyle = {
   border: "1px solid #d6dbe1",
-  padding: "4px",
+  padding: 4,
   textAlign: "left",
   verticalAlign: "middle",
 };
 
 const emptyStyle = {
   border: "1px solid #d6dbe1",
-  padding: "18px",
+  padding: 18,
   textAlign: "center",
   background: "#fff",
 };
 
-const wNum = { width: "38px" };
-const wNumber = { width: "52px" };
-const wFio = { width: "150px" };
-const wType = { width: "62px" };
-const wBrandModel = { width: "125px" };
-const wColor = { width: "60px" };
-const wVin = { width: "108px" };
-const wBroker = { width: "68px" };
-const wStatus = { width: "92px" };
-const wDate = { width: "82px" };
-const wAppNumber = { width: "78px" };
-const wSpecialist = { width: "74px" };
-const wSbkts = { width: "125px" };
-const wComment = { width: "115px" };
-const wSmallStatus = { width: "96px" };
-const wAction = { width: "48px" };
+const kpiGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: 10,
+  marginBottom: 12,
+};
+
+const kpiCardStyle = {
+  border: "1px solid #dbe3ef",
+  borderRadius: 10,
+  background: "#f7fbff",
+  padding: "10px 12px",
+};
+
+const kpiTitleStyle = {
+  fontSize: 12,
+  color: "#4a5b72",
+};
+
+const kpiValueStyle = {
+  marginTop: 4,
+  fontSize: 24,
+  fontWeight: 700,
+  color: "#114a8f",
+};
+
+const manualCardStyle = {
+  border: "1px solid #d6dbe1",
+  borderRadius: 8,
+  padding: 10,
+  marginBottom: 12,
+  background: "#fafbfc",
+};
+
+const manualGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  gap: 8,
+};
+
+const paginationStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  marginTop: 10,
+  flexWrap: "wrap",
+};

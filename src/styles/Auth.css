@@ -70,6 +70,13 @@
   font-weight: 500;
 }
 
+.auth-message.success {
+  color: #1d8348;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
 /* блок пароля */
 .password-wrapper {
   position: relative;
@@ -85,4 +92,16 @@
   background: transparent;
   cursor: pointer;
   font-size: 16px;
+}
+
+.auth-link-text {
+  margin-top: 12px;
+  text-align: center;
+  color: #334155;
+}
+
+.auth-link-text a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
 }

@@ -10,88 +10,64 @@ body,
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #d9f4ff;
+  background-color: #eef3fb;
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
-.protocol-template-container {
-  margin: 52px 0 0 0;
-}
 
-/* Navbar */
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.app-layout {
   width: 100%;
-  padding: 12px 24px;
-  background: #0ea5e9;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  font-weight: 400;
-  font-size: 16px;
-}
-
-.navbar-links {
+  min-height: 100vh;
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
 }
 
-.navbar a {
-  color: white;
-  text-decoration: none;
-  padding: 8px 16px;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  position: relative;
+.app-main {
+  flex: 1;
+  margin-left: 82px;
+  transition: margin-left 0.2s ease;
 }
 
-.navbar-links a:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  right: -8px;
-  top: 20%;
-  height: 60%;
-  width: 1px;
-  background-color: rgba(255,255,255,0.6);
+.app-main.nav-expanded {
+  margin-left: 236px;
 }
 
-.navbar a:hover {
-  background-color: rgba(255,255,255,0.2);
-  color: #ffd700;
-  transform: translateY(-2px);
-}
-
-.exit-link {
-  background-color: rgba(255,0,0,0.7);
-}
-
-.exit-link:hover {
-  background-color: #ff4d4d;
-  transform: translateY(-2px);
+.app-main-inner {
+  width: 100%;
+  min-height: 100vh;
+  padding: 14px 16px 20px;
+  box-sizing: border-box;
 }
 
 .page-shell {
   width: 100%;
   max-width: 100%;
-  padding: 84px 24px 24px;
 }
+
 .cars-page,
 .protocols-page,
 .applications-page,
-.add-car-page {
+.add-car-page,
+.settings-page {
   width: 100%;
   max-width: 100%;
-  padding: 84px 24px 24px;
   box-sizing: border-box;
 }
+
 .page-container {
   width: 100%;
   max-width: 100%;
-  padding: 0px 24px 24px 24px;
   box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .app-main {
+    margin-left: 72px;
+  }
+
+  .app-main.nav-expanded {
+    margin-left: 72px;
+  }
+
+  .app-main-inner {
+    padding: 12px;
+  }
 }

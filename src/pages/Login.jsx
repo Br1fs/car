@@ -36,8 +36,9 @@ export default function Login() {
     } catch (error) {
       console.error(error);
 
-      // 👇 всегда показываем нормальную ошибку
-      setMessage("Неверный логин или пароль");
+      setMessage(
+        error?.response?.data?.message || "Неверный логин или пароль"
+      );
     }
   };
 

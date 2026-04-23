@@ -2,31 +2,56 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { getDB } from "../db.js";
 
+const normalizeString = (value = "") => String(value).trim();
+
 export const register = async (req, res) => {
   try {
-    console.log("REGISTER BODY:", req.body);
+    const { firstName, lastName, login, email, position, password } = req.body;
 
-    const { login, password } = req.body;
+    const normalizedFirstName = normalizeString(firstName);
+    const normalizedLastName = normalizeString(lastName);
+    const normalizedLogin = normalizeString(login).toLowerCase();
+    const normalizedEmail = normalizeString(email).toLowerCase();
+    const normalizedPosition = normalizeString(position);
 
-    if (!login || !password) {
-      return res.status(400).json({ message: "Заполните логин и пароль" });
+    if (
+      !normalizedFirstName ||
+      !normalizedLastName ||
+      !normalizedLogin ||
+      !normalizedEmail ||
+      !password
+    ) {
+      return res.status(400).json({
+        message:
+          "Заполните имя, фамилию, логин, email и пароль",
+      });
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      return res.status(400).json({ message: "Введите корректный email" });
     }
 
     const db = getDB();
     const usersCollection = db.collection("users");
 
-    const normalizedLogin = login.trim().toLowerCase();
-
-    const existingUser = await usersCollection.findOne({ login: normalizedLogin });
+    const existingUser = await usersCollection.findOne({
+      $or: [{ login: normalizedLogin }, { email: normalizedEmail }],
+    });
 
     if (existingUser) {
-      return res.status(400).json({ message: "Пользователь с таким логином уже существует" });
+      return res.status(400).json({
+        message: "Пользователь с таким логином или email уже существует",
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await usersCollection.insertOne({
+      firstName: normalizedFirstName,
+      lastName: normalizedLastName,
       login: normalizedLogin,
+      email: normalizedEmail,
+      position: normalizedPosition,
       password: hashedPassword,
       role: "user",
       status: "pending",
@@ -49,9 +74,6 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    console.log("LOGIN BODY:", req.body);
-    console.log("JWT_SECRET EXISTS:", !!process.env.JWT_SECRET);
-
     const { login, password } = req.body;
 
     if (!login || !password) {
@@ -61,9 +83,11 @@ export const login = async (req, res) => {
     const db = getDB();
     const usersCollection = db.collection("users");
 
-    const normalizedLogin = login.trim().toLowerCase();
+    const normalizedLogin = normalizeString(login).toLowerCase();
 
-    const user = await usersCollection.findOne({ login: normalizedLogin });
+    const user = await usersCollection.findOne({
+      $or: [{ login: normalizedLogin }, { email: normalizedLogin }],
+    });
 
     if (!user) {
       return res.status(400).json({ message: "Пользователь не найден" });
@@ -101,7 +125,11 @@ export const login = async (req, res) => {
       token,
       user: {
         id: user._id.toString(),
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
         login: user.login,
+        email: user.email || "",
+        position: user.position || "",
         role: user.role,
         status: user.status,
       },
