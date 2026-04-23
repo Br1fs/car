@@ -4,44 +4,63 @@ import { getDB } from "../db.js";
 
 export const register = async (req, res) => {
   try {
-    console.log("REGISTER BODY:", req.body);
+    const { firstName, lastName, login, email, password, repeatPassword } = req.body;
 
-    const { login, password } = req.body;
+    if (!firstName || !lastName || !login || !email || !password || !repeatPassword) {
+      return res.status(400).json({ message: "Fill in all required fields" });
+    }
 
-    if (!login || !password) {
-      return res.status(400).json({ message: "Заполните логин и пароль" });
+    const trimmedFirstName = String(firstName).trim();
+    const trimmedLastName = String(lastName).trim();
+    const normalizedLogin = String(login).trim().toLowerCase();
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    if (!trimmedFirstName || !trimmedLastName || !normalizedLogin || !normalizedEmail) {
+      return res.status(400).json({ message: "Fill in all required fields" });
+    }
+
+    if (password !== repeatPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
     }
 
     const db = getDB();
     const usersCollection = db.collection("users");
 
-    const normalizedLogin = login.trim().toLowerCase();
-
-    const existingUser = await usersCollection.findOne({ login: normalizedLogin });
+    const existingUser = await usersCollection.findOne({
+      $or: [{ login: normalizedLogin }, { email: normalizedEmail }],
+    });
 
     if (existingUser) {
-      return res.status(400).json({ message: "Пользователь с таким логином уже существует" });
+      if (existingUser.login === normalizedLogin) {
+        return res.status(400).json({ message: "User with this login already exists" });
+      }
+      return res.status(400).json({ message: "User with this email already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await usersCollection.insertOne({
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName,
       login: normalizedLogin,
+      email: normalizedEmail,
+      position: "",
       password: hashedPassword,
       role: "user",
-      status: "pending",
+      status: "pending approval",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
     return res.status(201).json({
-      message: "Учетка создана и отправлена на одобрение",
+      message: "Wait for admin approval",
+      status: "pending approval",
       userId: result.insertedId,
     });
   } catch (error) {
     console.error("REGISTER ERROR:", error);
     return res.status(500).json({
-      message: "Ошибка регистрации",
+      message: "Registration error",
       error: error.message,
     });
   }
@@ -49,41 +68,38 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    console.log("LOGIN BODY:", req.body);
-    console.log("JWT_SECRET EXISTS:", !!process.env.JWT_SECRET);
-
     const { login, password } = req.body;
 
     if (!login || !password) {
-      return res.status(400).json({ message: "Введите логин и пароль" });
+      return res.status(400).json({ message: "Enter login and password" });
     }
 
     const db = getDB();
     const usersCollection = db.collection("users");
 
-    const normalizedLogin = login.trim().toLowerCase();
+    const normalizedLogin = String(login).trim().toLowerCase();
 
     const user = await usersCollection.findOne({ login: normalizedLogin });
 
     if (!user) {
-      return res.status(400).json({ message: "Пользователь не найден" });
+      return res.status(400).json({ message: "Invalid login or password" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({ message: "Неверный пароль" });
+      return res.status(400).json({ message: "Invalid login or password" });
     }
 
     if (user.role !== "admin" && user.status !== "approved") {
       return res.status(403).json({
-        message: "Ваша учетка еще не одобрена",
+        message: "Wait for admin approval",
       });
     }
 
     if (!process.env.JWT_SECRET) {
       return res.status(500).json({
-        message: "На сервере не задан JWT_SECRET",
+        message: "JWT_SECRET is not configured on server",
       });
     }
 
@@ -101,7 +117,11 @@ export const login = async (req, res) => {
       token,
       user: {
         id: user._id.toString(),
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
         login: user.login,
+        email: user.email || "",
+        position: user.position || "",
         role: user.role,
         status: user.status,
       },
@@ -109,7 +129,7 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error("LOGIN ERROR:", error);
     return res.status(500).json({
-      message: "Ошибка входа",
+      message: "Login error",
       error: error.message,
     });
   }

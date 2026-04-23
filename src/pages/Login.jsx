@@ -13,7 +13,7 @@ export default function Login() {
   });
 
   const [message, setMessage] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // 👈 новое
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -34,10 +34,7 @@ export default function Login() {
 
       navigate("/table");
     } catch (error) {
-      console.error(error);
-
-      // 👇 всегда показываем нормальную ошибку
-      setMessage("Неверный логин или пароль");
+      setMessage(error?.response?.data?.message || "Login failed");
     }
   };
 
@@ -49,18 +46,17 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="auth-form">
           <input
             name="login"
-            placeholder="Логин"
+            placeholder="Login"
             value={form.login}
             onChange={handleChange}
             className="auth-input"
           />
 
-          {/* 👇 пароль + кнопка показать */}
           <div className="password-wrapper">
             <input
               name="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Пароль"
+              placeholder="Password"
               value={form.password}
               onChange={handleChange}
               className="auth-input"
@@ -71,12 +67,12 @@ export default function Login() {
               className="show-password-btn"
               onClick={() => setShowPassword((prev) => !prev)}
             >
-              {showPassword ? "🙈" : "👁"}
+              {showPassword ? "Hide" : "Show"}
             </button>
           </div>
 
           <button type="submit" className="auth-button">
-            Войти
+            Login
           </button>
         </form>
 
