@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import "../styles/ApplicationView.css";
 import { API_URL } from "../config";
+import { buildAuthHeaders } from "../utils/authHeaders";
 
 export default function ApplicationView() {
   const { id } = useParams();
@@ -40,6 +41,7 @@ export default function ApplicationView() {
 
       await axios.put(`${API_URL}/api/applications/${id}`, formDataToSend, {
         headers: {
+          ...buildAuthHeaders(),
           "Content-Type": "multipart/form-data",
         },
       });
@@ -141,6 +143,16 @@ export default function ApplicationView() {
         <h2>Заявка № {app._id}</h2>
         <div className="appview-header-buttons">
           <button
+            className="appview-btn appview-btn-copy"
+            onClick={() =>
+              navigate("/applications/new", {
+                state: { copyFromApplicationId: app._id },
+              })
+            }
+          >
+            Копировать
+          </button>
+          <button
             className="appview-btn appview-btn-edit"
             onClick={() => navigate(`/create-application/${id}`)}
           >
@@ -159,6 +171,7 @@ export default function ApplicationView() {
       <div className="appview-card appview-info-card">
         <p><b>Дата создания:</b> {app.createdAt?.split("T")[0] || "-"}</p>
         <p><b>Номер заявки:</b> {app._id}</p>
+        <p><b>Номер протокола:</b> {app.protocolNumber || "-"}</p>
         <p>
           <b>Статус №1:</b>{" "}
           <span className={`appview-status ${getStatusClass(app.status1)}`}>

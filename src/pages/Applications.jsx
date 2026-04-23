@@ -1,58 +1,91 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import "../styles/Applications.css";
 import formatDateRu from "../utils/formatDateRu";
 import { API_URL } from "../config";
+import { buildAuthHeaders } from "../utils/authHeaders";
 
 export default function Applications() {
-  // const [applications, setApplications] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [dateFilter, setDateFilter] = useState({ fromDate: "", toDate: "" });
   const navigate = useNavigate();
+
+  const fetchApps = async () => {
+    try {
+      setLoading(true);
+      const params = {};
+      if (dateFilter.fromDate) params.fromDate = dateFilter.fromDate;
+      if (dateFilter.toDate) params.toDate = dateFilter.toDate;
+
+      const res = await axios.get(`${API_URL}/api/applications`, { params });
+      const sorted = [...res.data].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      setApps(sorted);
+    } catch (err) {
+      console.error("Ошибка загрузки заявок:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchApps();
+  }, [dateFilter.fromDate, dateFilter.toDate]);
+
   const toggleSelectApplication = (id) => {
-  setSelectedIds((prev) =>
-    prev.includes(id)
-      ? prev.filter((i) => i !== id)
-      : [...prev, id]
-  );
-};
-
-const toggleSelectAll = () => {
-  if (selectedIds.length === apps.length) {
-    setSelectedIds([]);
-  } else {
-    setSelectedIds(apps.map(a => a._id));
-  }
-};
-
-const deleteSelected = async () => {
-  if (!selectedIds.length) {
-    alert("Выберите заявки");
-    return;
-  }
-
-  try {
-    await Promise.all(
-      selectedIds.map(id =>
-        axios.delete(
-          `${API_URL}/api/applications/${id}`
-        )
-      )
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
+  };
 
-    setApps(prev =>
-      prev.filter(a => !selectedIds.includes(a._id))
-    );
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredApps.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredApps.map((a) => a._id));
+    }
+  };
 
-    setSelectedIds([]);
+  const startCopyFromApplication = async (appId) => {
+    try {
+      const numberRes = await axios.get(`${API_URL}/api/applications/next-protocol-number`);
+      const reservedProtocolNumber = String(numberRes.data?.nextProtocolNumber || "");
+      navigate("/applications/new", {
+        state: {
+          copyFromApplicationId: appId,
+          reservedProtocolNumber,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      alert("Не удалось получить следующий номер протокола");
+    }
+  };
 
-  } catch (err) {
-    console.error(err);
-  }
-};
+  const deleteSelected = async () => {
+    if (!selectedIds.length) {
+      alert("Выберите заявки");
+      return;
+    }
+
+    try {
+      await Promise.all(
+        selectedIds.map((id) => axios.delete(`${API_URL}/api/applications/${id}`))
+      );
+
+      setApps((prev) => prev.filter((a) => !selectedIds.includes(a._id)));
+      setSelectedIds([]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // ===== Статусы и цвета =====
   const getStatusClass = (status) => {
@@ -71,48 +104,83 @@ const deleteSelected = async () => {
     return "status-default";
   };
 
-  // ===== Загрузка заявок =====
+  // ===== Поиск =====
+  const filteredApps = useMemo(() => {
+    const q = search.toLowerCase();
+    return apps.filter((app) => {
+      return (
+        app.fio?.toLowerCase().includes(q) ||
+        app.vin?.toLowerCase().includes(q) ||
+        app.brand?.toLowerCase().includes(q) ||
+        app.model?.toLowerCase().includes(q) ||
+        app.broker?.toLowerCase().includes(q) ||
+        String(app.protocolNumber || "").toLowerCase().includes(q)
+      );
+    });
+  }, [apps, search]);
+
   useEffect(() => {
-    const fetchApps = async () => {
-      try {
-        const res = await axios.get(`${API_URL}/api/applications`);
+    setCurrentPage(1);
+  }, [search, rowsPerPage]);
 
-        // новые сверху
-        const sorted = [...res.data].sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        );
+  const totalPages = Math.max(1, Math.ceil(filteredApps.length / rowsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * rowsPerPage;
+  const visibleApps = filteredApps.slice(startIndex, startIndex + rowsPerPage);
 
-        setApps(sorted);
-      } catch (err) {
-        console.error("Ошибка загрузки заявок:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const updateStatus = async (appId, field, value) => {
+    try {
+      const target = apps.find((item) => item._id === appId);
+      const payload = {
+        status1: field === "status1" ? value : target?.status1 || "",
+        status2: field === "status2" ? value : target?.status2 || "",
+      };
 
-    fetchApps();
-  }, []);
+      const res = await axios.patch(`${API_URL}/api/applications/${appId}/status`, payload, {
+        headers: buildAuthHeaders(),
+      });
+
+      const updated = res.data;
+      setApps((prev) => prev.map((item) => (item._id === appId ? updated : item)));
+    } catch (error) {
+      console.error(error);
+      alert("Не удалось обновить статус");
+    }
+  };
 
   if (!apps.length && !loading) {
-  return <div className="empty">Заявок пока нет</div>;
-}
-
-  // ===== Поиск =====
-  const filteredApps = apps.filter((app) => {
-    const q = search.toLowerCase();
-    return (
-      app.fio?.toLowerCase().includes(q) ||
-      app.vin?.toLowerCase().includes(q) ||
-      app.brand?.toLowerCase().includes(q) ||
-      app.model?.toLowerCase().includes(q) ||
-      app.broker?.toLowerCase().includes(q)
-    );
-  });
+    return <div className="empty">Заявок пока нет</div>;
+  }
 
   return (
     <div className="applications-page">
       <div className="page-container"></div>
       <h2>Список заявок</h2>
+
+      <div className="applications-toolbar">
+        <input
+          type="date"
+          value={dateFilter.fromDate}
+          onChange={(e) =>
+            setDateFilter((prev) => ({ ...prev, fromDate: e.target.value }))
+          }
+          className="applications-filter-date"
+        />
+        <input
+          type="date"
+          value={dateFilter.toDate}
+          onChange={(e) =>
+            setDateFilter((prev) => ({ ...prev, toDate: e.target.value }))
+          }
+          className="applications-filter-date"
+        />
+        <button
+          className="applications-filter-reset"
+          onClick={() => setDateFilter({ fromDate: "", toDate: "" })}
+        >
+          Сбросить дату
+        </button>
+      </div>
 
       <input
         className="applications-search"
@@ -136,7 +204,7 @@ const deleteSelected = async () => {
       type="checkbox"
       onClick={(e) => e.stopPropagation()}
       onChange={toggleSelectAll}
-      checked={apps.length > 0 && selectedIds.length === apps.length}
+      checked={filteredApps.length > 0 && selectedIds.length === filteredApps.length}
     />
   </div>
           <div>№</div>
@@ -156,7 +224,7 @@ const deleteSelected = async () => {
         </div>
 
         {/* ===== ROWS ===== */}
-        {filteredApps.map((app, index) => (
+        {visibleApps.map((app, index) => (
   <div
     key={app._id}
     className="applications-table-row clickable"
@@ -174,18 +242,40 @@ const deleteSelected = async () => {
       />
     </div>
 
-    <div>{filteredApps.length - index}</div>
+    <div>{filteredApps.length - (startIndex + index)}</div>
 
     <div>{app.protocolNumber || "-"}</div>
 
     <div>{formatDateRu(app.createdAt)}</div>
 
-    <div className={`status ${getStatusClass(app.status1)}`}>
-      {app.status1 || "На одобрении"}
+    <div>
+      <select
+        value={app.status1 || ""}
+        className={`status ${getStatusClass(app.status1)}`}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => updateStatus(app._id, "status1", e.target.value)}
+      >
+        <option value="">—</option>
+        <option value="На одобрении">На одобрении</option>
+        <option value="Новая">Новая</option>
+        <option value="В работе">В работе</option>
+        <option value="Выпуск готов">Выпуск готов</option>
+        <option value="Стоп">Стоп</option>
+      </select>
     </div>
 
-    <div className={`status ${getStatusClass(app.status2)}`}>
-      {app.status2 || "—"}
+    <div>
+      <select
+        value={app.status2 || ""}
+        className={`status ${getStatusClass(app.status2)}`}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => updateStatus(app._id, "status2", e.target.value)}
+      >
+        <option value="">—</option>
+        <option value="Прозвона нет">Прозвона нет</option>
+        <option value="Прозвонен">Прозвонен</option>
+        <option value="Ожидает звонка">Ожидает звонка</option>
+      </select>
     </div>
 
     <div>{app.fio || "-"}</div>
@@ -217,6 +307,15 @@ const deleteSelected = async () => {
               </button>
 
               <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startCopyFromApplication(app._id);
+                }}
+              >
+                Копировать
+              </button>
+
+              <button
                 className="danger"
                 onClick={async (e) => {
                   e.stopPropagation();
@@ -241,6 +340,37 @@ const deleteSelected = async () => {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="applications-pagination">
+        <div className="applications-page-size">
+          <label>Показывать:</label>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => setRowsPerPage(Number(e.target.value))}
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+        <div className="applications-page-controls">
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            disabled={safePage <= 1}
+          >
+            Назад
+          </button>
+          <span>
+            Страница {safePage} / {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={safePage >= totalPages}
+          >
+            Вперед
+          </button>
+        </div>
       </div>
     </div>
   );

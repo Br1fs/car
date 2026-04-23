@@ -204,6 +204,14 @@
 .actions button:nth-child(3):hover {
   background: #c0392b;
 }
+.actions button.copy {
+  background: #4e73df;
+  color: #fff;
+}
+
+.actions button.copy:hover {
+  background: #3456b3;
+}
 .bulk-delete-btn {
   margin: 12px 0 16px;
   padding: 10px 16px;

@@ -9,7 +9,7 @@ export default function ProtocolTemplates() {
 
   useEffect(() => {
     axios
-      .get("${API_URL}/api/protocol-templates")
+      .get(`${API_URL}/api/protocol-templates`)
       .then((res) => setList(res.data))
       .catch((err) => console.error(err));
   }, []);

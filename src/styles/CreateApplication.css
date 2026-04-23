@@ -374,3 +374,15 @@ transform: none;
 .back-btn:hover {
   background: #e2e6ea;
 }
+
+.protocol-number-box {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.protocol-number-box span {
+  font-size: 13px;
+  color: #3b4252;
+  font-weight: 700;
+}

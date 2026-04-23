@@ -32,6 +32,7 @@
 .settings-top-message {
   margin-bottom: 18px;
   font-size: 15px;
+  color: #1f2937;
 }
 
 .settings-message {
@@ -89,6 +90,29 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.settings-inline-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-inline-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ced5df;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+.settings-inline-input:focus {
+  border-color: #2563eb;
+}
+
+.settings-muted {
+  color: #6b7280;
+  font-size: 13px;
 }
 
 .settings-btn {

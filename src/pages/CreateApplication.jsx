@@ -5,10 +5,11 @@ import { buildCharacteristics } from "../utils/buildCharacteristics";
 import { loadRoboto } from "../fonts/roboto";
 // import loadTimes from "../fonts/loadTimes";
 import autoTable from "jspdf-autotable";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import formatDateRu from "../utils/formatDateRu";
 import { API_URL } from "../config";
 import "../styles/CreateApplication.css";
+import { buildAuthHeaders } from "../utils/authHeaders";
 
 const isMCategory = (category) => {
   const c = String(category || "").trim().toLowerCase();
@@ -84,6 +85,21 @@ const getOriginalFileNameSafe = (file) => {
 };
 
 const isImageName = (name) => /\.(jpg|jpeg|png|webp|bmp|gif)$/i.test(name || "");
+
+const normalizeOcrTextByField = (field, text) => {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+
+  if (field === "iin") {
+    return raw.replace(/\D/g, "").slice(0, 12);
+  }
+
+  if (field === "vin") {
+    return raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  }
+
+  return raw;
+};
 
 export default function CreateApplication() {
   const [form, setForm] = useState({
@@ -190,8 +206,10 @@ export default function CreateApplication() {
   const [zayavkaDate, setZayavkaDate] = useState("");
 
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-
+  const copyFromApplicationId = String(location.state?.copyFromApplicationId || "");
+  const isCopyMode = !id && Boolean(copyFromApplicationId);
   const effectiveFuelType = isN3Category(form.templateCategory)
     ? "Дизель"
     : form.fuelType;
@@ -240,6 +258,42 @@ export default function CreateApplication() {
   }, [form.type, form.brand, form.model, form.year, form.volume, cars]);
 
   useEffect(() => {
+    if (id || !copyFromApplicationId) return;
+
+    const formatDate = (date) =>
+      date ? new Date(date).toISOString().split("T")[0] : "";
+
+    axios
+      .get(`${API_URL}/api/applications/${copyFromApplicationId}`)
+      .then((res) => {
+        const data = res.data || {};
+        const {
+          _id,
+          files: _files,
+          createdAt: _createdAt,
+          updatedAt: _updatedAt,
+          workflow: _workflow,
+          auditLog: _auditLog,
+          ...copySafeData
+        } = data;
+
+        setForm((prev) => ({
+          ...prev,
+          ...copySafeData,
+          files: {},
+          createdAt: formatDate(new Date()),
+          templateCategory: getTemplateCategory(copySafeData.category),
+        }));
+        setExistingFiles([]);
+        setFilesUploaded([]);
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Не удалось загрузить заявку для копирования");
+      });
+  }, [id, copyFromApplicationId]);
+
+  useEffect(() => {
     if (!id) return;
 
     const formatDate = (date) =>
@@ -256,6 +310,7 @@ export default function CreateApplication() {
           createdAt: formatDate(data.createdAt),
           protocolDate: formatDate(data.protocolDate),
         });
+        setProtocolNumber(String(data.protocolNumber || ""));
 
         const loadedFiles = [];
 
@@ -277,6 +332,22 @@ export default function CreateApplication() {
         console.error(err);
         alert("Заявка не найдена");
       });
+  }, [id]);
+
+  useEffect(() => {
+    if (id) return;
+
+    const loadNextProtocolNumber = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/applications/next-protocol-number`);
+        const next = String(res.data?.nextProtocolNumber || "");
+        setProtocolNumber(next);
+      } catch (err) {
+        console.error("Ошибка получения номера протокола:", err);
+      }
+    };
+
+    loadNextProtocolNumber();
   }, [id]);
 
   const characteristics = useMemo(() => buildCharacteristics(form), [form]);
@@ -345,6 +416,48 @@ export default function CreateApplication() {
     ]);
   };
 
+  const handlePhotoOcrUpload = async (event, targetField) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    let detectedText = "";
+
+    if (
+      typeof window !== "undefined" &&
+      "BarcodeDetector" in window &&
+      ["vin", "iin"].includes(targetField)
+    ) {
+      try {
+        const detector = new window.BarcodeDetector({
+          formats: ["code_128", "code_39", "qr_code"],
+        });
+        const bitmap = await createImageBitmap(file);
+        const barcodes = await detector.detect(bitmap);
+        bitmap.close?.();
+
+        if (barcodes?.[0]?.rawValue) {
+          detectedText = String(barcodes[0].rawValue || "");
+        }
+      } catch (error) {
+        console.warn("Barcode detect failed:", error);
+      }
+    }
+
+    if (!detectedText) {
+      detectedText = window.prompt(
+        "Автораспознавание недоступно. Введите текст вручную:",
+        ""
+      ) || "";
+    }
+
+    const normalized = normalizeOcrTextByField(targetField, detectedText);
+    if (normalized) {
+      setForm((prev) => ({ ...prev, [targetField]: normalized }));
+    }
+
+    event.target.value = "";
+  };
+
   const appendFilesToFormData = (formDataToSend) => {
     Object.entries(files).forEach(([key, fileValue]) => {
       if (!fileValue) return;
@@ -401,7 +514,10 @@ export default function CreateApplication() {
       appendFilesToFormData(formDataToSend);
 
       await axios.put(`${API_URL}/api/applications/${id}`, formDataToSend, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: {
+          ...buildAuthHeaders(),
+          "Content-Type": "multipart/form-data",
+        },
       });
 
       alert("Изменения сохранены");
@@ -420,6 +536,7 @@ export default function CreateApplication() {
         "form",
         JSON.stringify({
           ...safeForm,
+          protocolNumber: String(protocolNumber || "").trim(),
           characteristics: buildCharacteristics(safeForm),
           status1: safeForm.status1 || "На одобрении",
           status2: safeForm.status2 || "",
@@ -428,11 +545,12 @@ export default function CreateApplication() {
 
       appendFilesToFormData(formDataToSend);
 
-      const res = await axios.post(
-        `${API_URL}/api/applications/save`,
-        formDataToSend,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      const res = await axios.post(`${API_URL}/api/applications/save`, formDataToSend, {
+        headers: {
+          ...buildAuthHeaders(),
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       alert("Новая заявка создана");
 
@@ -858,6 +976,20 @@ doc.setFont("Roboto", "normal");
     <div className="app-form">
       <div className="left">
         <h2>Исходные данные</h2>
+        <div className="protocol-number-box">
+          <span>Номер протокола</span>
+          <input
+            name="protocolNumber"
+            value={protocolNumber}
+            onChange={(e) => setProtocolNumber(e.target.value)}
+            placeholder="Введите номер протокола"
+          />
+          {!id && (
+            <small style={{ color: "#5f6b7a", fontSize: "12px" }}>
+              Номер резервируется при создании заявки
+            </small>
+          )}
+        </div>
         <input name="fio" placeholder="ФИО" value={form.fio} onChange={handleChange} />
         <input
   name="iin"
@@ -883,7 +1015,38 @@ doc.setFont("Roboto", "normal");
           <button className="whatsapp-btn" onClick={sendToWhatsapp}>Отправить WhatsApp</button>
         </div>
         <input name="email" placeholder="Email" value={form.email} onChange={handleChange} />
-        <input name="vin" placeholder="VIN" value={form.vin} onChange={handleChange} />
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <input
+            name="vin"
+            placeholder="VIN"
+            value={form.vin}
+            onChange={handleChange}
+            style={{ flex: 1 }}
+          />
+          <label
+            title="Считать VIN с фото"
+            style={{
+              width: "42px",
+              height: "42px",
+              borderRadius: "8px",
+              border: "1px solid #c9d2dd",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              background: "#fff",
+            }}
+          >
+            📷
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => handlePhotoOcrUpload(event, "vin")}
+              style={{ display: "none" }}
+            />
+          </label>
+        </div>
 
         <select name="status1" value={form.status1 || ""} onChange={handleChange}>
           <option value="">Статус №1</option>
@@ -910,14 +1073,14 @@ doc.setFont("Roboto", "normal");
 
         <select name="brand" value={form.brand} onChange={handleChange}>
           <option value="">Выберите марку</option>
-          {[...new Set(cars.filter((c) => c.type === form.type).map((c) => c.brand))].map((b, i) => (
+          {[...new Set(cars.filter((c) => c.type === form.type && (!form.fuelType || c.fuelType === form.fuelType)).map((c) => c.brand))].map((b, i) => (
             <option key={i} value={b}>{b}</option>
           ))}
         </select>
 
         <select name="model" value={form.model} onChange={handleChange}>
           <option value="">Выберите модель</option>
-          {[...new Set(cars.filter((c) => c.type === form.type && c.brand === form.brand).map((c) => c.model))].map((m, i) => (
+          {[...new Set(cars.filter((c) => c.type === form.type && c.brand === form.brand && (!form.fuelType || c.fuelType === form.fuelType)).map((c) => c.model))].map((m, i) => (
             <option key={i} value={m}>{m}</option>
           ))}
         </select>
@@ -983,6 +1146,7 @@ doc.setFont("Roboto", "normal");
           <input
             type="file"
             accept="image/*"
+            capture="environment"
             multiple
             onChange={(e) => handleFileChange(e, "photos")}
           />
@@ -1043,8 +1207,8 @@ doc.setFont("Roboto", "normal");
         </button>
 
         <div className="pdf-buttons">
-          <button className="pdf-btn" onClick={createNewApplication}>
-            Создать заявку
+          <button className="pdf-btn" onClick={createNewApplication} disabled={savingCreate}>
+            {isCopyMode ? "Создать копию заявки" : "Создать заявку"}
           </button>
 
           <button className="pdf-btn" onClick={generatePDF}>
