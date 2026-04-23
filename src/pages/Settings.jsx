@@ -19,7 +19,7 @@ export default function Settings() {
     email: item.email || "",
     position: item.position || "",
     role: item.role || "user",
-    status: item.status || "pending approval",
+    status: item.status === "pending" ? "pending approval" : item.status || "pending approval",
     password: "",
   });
 
@@ -129,13 +129,17 @@ export default function Settings() {
     }
 
     try {
-      await axios.patch(`${API_URL}/api/admin/users/${id}`, payload, {
+      const res = await axios.patch(`${API_URL}/api/admin/users/${id}`, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       setMessage("Пользователь обновлен");
-      fetchUsers();
+      setUsers((prev) => prev.map((item) => (item._id === id ? res.data : item)));
+      setEditForms((prev) => ({
+        ...prev,
+        [id]: mapUserToForm(res.data),
+      }));
     } catch (error) {
       setMessage(error?.response?.data?.message || "Ошибка обновления");
     }
