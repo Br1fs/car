@@ -68,7 +68,7 @@
 .settings-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 1450px;
 }
 
 .settings-table th,
@@ -115,6 +115,26 @@
   color: white;
 }
 
+.settings-btn.save {
+  background: #2563eb;
+  color: white;
+}
+
 .settings-btn:hover {
   opacity: 0.92;
+}
+
+.settings-input {
+  width: 100%;
+  border: 1px solid #d7dce5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.settings-input:focus {
+  border-color: #3b82f6;
+  outline: none;
 }

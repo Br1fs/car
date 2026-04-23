@@ -62,12 +62,15 @@
   background: #1d4ed8;
 }
 
+.auth-message {
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
 /* красная ошибка */
 .auth-message.error {
   color: #e53935;
-  margin-top: 10px;
-  font-size: 14px;
-  font-weight: 500;
 }
 
 /* блок пароля */

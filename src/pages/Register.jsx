@@ -8,8 +8,12 @@ export default function Register() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
     login: "",
+    email: "",
     password: "",
+    repeatPassword: "",
   });
 
   const [message, setMessage] = useState("");
@@ -45,9 +49,34 @@ export default function Register() {
 
         <form onSubmit={handleSubmit} className="auth-form">
           <input
+            name="firstName"
+            placeholder="First name"
+            value={form.firstName}
+            onChange={handleChange}
+            className="auth-input"
+          />
+
+          <input
+            name="lastName"
+            placeholder="Last name"
+            value={form.lastName}
+            onChange={handleChange}
+            className="auth-input"
+          />
+
+          <input
             name="login"
-            placeholder="Логин"
+            placeholder="Login"
             value={form.login}
+            onChange={handleChange}
+            className="auth-input"
+          />
+
+          <input
+            name="email"
+            type="email"
+            placeholder="Email"
+            value={form.email}
             onChange={handleChange}
             className="auth-input"
           />
@@ -55,14 +84,23 @@ export default function Register() {
           <input
             name="password"
             type="password"
-            placeholder="Пароль"
+            placeholder="Password"
             value={form.password}
             onChange={handleChange}
             className="auth-input"
           />
 
+          <input
+            name="repeatPassword"
+            type="password"
+            placeholder="Repeat password"
+            value={form.repeatPassword}
+            onChange={handleChange}
+            className="auth-input"
+          />
+
           <button type="submit" className="auth-button">
-            Создать учетку
+            Create account
           </button>
         </form>
 
