@@ -49,6 +49,7 @@
   border-radius: 10px;
   overflow-x: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid #dbe5f0;
 }
 
 
@@ -75,7 +76,8 @@
 
 .dogovors-table-header > div {
   padding: 12px 10px;
-  border-right: 1px solid #dde2ea;
+  border-right: 1px solid #dbe5f0;
+  border-bottom: 1px solid #dbe5f0;
   white-space: nowrap;
 }
 
@@ -96,12 +98,13 @@
 }
 
 .dogovors-table-row:hover {
-  background: #f8fafc;
+  background: #f7fbff;
 }
 
 .dogovors-table-row > div {
   padding: 8px 10px;
-  border-right: 1px solid #f0f2f6;
+  border-right: 1px solid #e7edf5;
+  border-bottom: 1px solid #e7edf5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -138,19 +141,23 @@
   border: none;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.actions button:hover {
+  transform: translateY(-1px);
 }
 
 
 /* скачать */
 
 .download-btn {
-  background: #3498db;
+  background: #14b8a6;
   color: white;
 }
 
 .download-btn:hover {
-  background: #2e86c1;
+  background: #0f766e;
 }
 
 

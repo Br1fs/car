@@ -49,6 +49,7 @@
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
   padding: 20px 22px;
   margin-bottom: 18px;
+  border: 1px solid #dbe5f0;
 }
 
 .appview-card h3 {
@@ -62,6 +63,13 @@
   color: #374151;
   line-height: 1.5;
   word-break: break-word;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6edf5;
+}
+
+.appview-card p:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .appview-card b {
@@ -96,6 +104,13 @@
 
 .appview-docs-card li {
   margin: 8px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.appview-docs-card li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .appview-docs-card a {
@@ -339,6 +354,7 @@
   border-radius: 10px;
   padding: 8px;
   background: #fff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .appview-photo-preview {

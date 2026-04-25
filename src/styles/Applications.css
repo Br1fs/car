@@ -11,6 +11,18 @@
   font-weight: 600;
 }
 
+.applications-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #f4f6f9;
+  padding-bottom: 10px;
+}
+
 /* ================== ПОИСК ================== */
 .applications-search {
   width: 100%;
@@ -33,27 +45,29 @@
   border-radius: 10px;
   overflow-x: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid #dbe7f7;
+  width: fit-content;
+  max-width: 100%;
 }
 
 /* ================== HEADER ================== */
 .table-header {
   display: grid;
   grid-template-columns:
-  80px
+  70px
     80px /* № */ 
-    105px/* № */
-    160px /* дата */ 
-    130px /* статус1 */ 
-    120px /* статус2 */ 
-    330px /* ФИО */ 
-    200px /* VIN */ 
-    180px /* Тип */ 
-    140px /* Марка */ 
-    150px /* Модель */ 
+    110px/* № */
+    145px /* дата */ 
+    170px /* статус */ 
+    280px /* ФИО */ 
+    190px /* VIN */ 
+    160px /* Тип */ 
+    130px /* Марка */ 
+    140px /* Модель */ 
     70px /* Год */ 
-    80px /* Объём */ 
-    140px /* Брокер */ 
-    350px; /* Действия */
+    90px /* Объём */ 
+    130px /* Брокер */ 
+    280px; /* Действия */
   background: #eef1f6;
   font-weight: 600;
   font-size: 14px;
@@ -76,29 +90,33 @@
 
 .table-header > div {
   padding: 12px 10px;
-  border-right: 1px solid #dde2ea;
+  border-right: 1px solid #dbe5f0;
+  border-bottom: 1px solid #dbe5f0;
   white-space: nowrap;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ================== СТРОКИ ================== */
 .applications-table-row {
   display: grid;
   grid-template-columns:
-  80px
+  70px
     80px
-    105px
+    110px
+    145px
+    170px
+    280px
+    190px
     160px
     130px
-    120px
-    330px
-    200px
-    180px
     140px
-    150px
     70px
-    80px
-    140px
-    350px;
+    90px
+    130px
+    280px;
   cursor: pointer;
 }
 
@@ -108,24 +126,31 @@
 
 .applications-table-row > div {
   padding: 8px 10px;
-  border-right: 1px solid #f0f2f6;
+  border-right: 1px solid #e7edf5;
+  border-bottom: 1px solid #e7edf5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ================== СТАТУСЫ ================== */
 .status {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 8px;
-  border-radius: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
   text-align: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-width: 1px;
+  border-style: solid;
 }
 
 /* Статус №1 и №2 */
@@ -159,49 +184,113 @@
   color: #555;
 }
 
+.status-pink {
+  background: #fdf2f8;
+  border: 1px solid #f9a8d4;
+  color: #9d174d;
+}
+
+.status-blue {
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  color: #075985;
+}
+
+.status-purple {
+  background: #f5f3ff;
+  border: 1px solid #c4b5fd;
+  color: #6d28d9;
+}
+
+.status-white {
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  color: #475569;
+}
+
+.status-select {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.status-select:focus {
+  outline: none;
+}
+
 /* ================== ДЕЙСТВИЯ ================== */
 .actions {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .actions button {
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 6px;
   border: none;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.1;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, transform 0.15s ease;
 }
 
-/* открыть */
+.actions button:hover {
+  transform: translateY(-1px);
+}
+
+/* копировать */
 .actions button:nth-child(1) {
-  background: #3498db;
+  background: #16a34a;
   color: white;
 }
 
 .actions button:nth-child(1):hover {
-  background: #2e86c1;
+  background: #15803d;
 }
 
-/* редактировать */
+/* скачать макет */
 .actions button:nth-child(2) {
-  background: #f1c40f;
-  color: #000;
+  background: #14b8a6;
+  color: white;
 }
 
 .actions button:nth-child(2):hover {
-  background: #d4ac0d;
+  background: #0f766e;
 }
 
-/* удалить */
+/* открыть */
 .actions button:nth-child(3) {
-  background: #e74c3c;
+  background: #0ea5e9;
   color: white;
 }
 
 .actions button:nth-child(3):hover {
+  background: #0284c7;
+}
+
+/* редактировать */
+.actions button:nth-child(4) {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.actions button:nth-child(4):hover {
+  background: #1d4ed8;
+}
+
+.actions button:nth-child(5) {
+  background: #e74c3c;
+  color: white;
+}
+
+.actions button:nth-child(5):hover {
   background: #c0392b;
 }
 .bulk-delete-btn {
@@ -241,4 +330,28 @@
 
 .save-change-btn:active {
   background: #146c43;
+}
+
+.applications-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.applications-pagination-info,
+.applications-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.applications-pagination select,
+.applications-pagination button {
+  border: 1px solid #cfe0f6;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
 }

@@ -219,6 +219,54 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ================= pdf по ID заявки приложения =================
+router.get("/by-application/:applicationId/pdf", async (req, res) => {
+  try {
+    const db = getDB();
+    const { applicationId } = req.params;
+    if (!applicationId) {
+      return res.status(400).send("Не передан ID приложения");
+    }
+    if (!ObjectId.isValid(applicationId)) {
+      return res.status(404).send("Заявка приложения не найдена");
+    }
+
+    const application = await db.collection("applications").findOne({
+      _id: new ObjectId(applicationId),
+    });
+    if (!application) {
+      return res.status(404).send("Заявка приложения не найдена");
+    }
+
+    // Всегда формируем новый макет по текущим данным заявки
+    const generatedDoc = {
+      applicationId: String(applicationId),
+      zayavkaNumber: application.protocolNumber || "",
+      zayavkaDate: application.createdAt
+        ? new Date(application.createdAt).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      brand: application.brand || "",
+      model: application.model || "",
+      vin: application.vin || "",
+      year: application.year || "",
+      typ: application.typ || application.type || "",
+      category: application.category || "",
+      manufacturer: application.MANUFACTURER || application.manufacturer || "",
+      fio: application.fio || "",
+      address: application.address || "",
+      iin: application.iin || "",
+      characteristics: [],
+      createdAt: new Date(),
+    };
+
+    const inserted = await db.collection("zayavki").insertOne(generatedDoc);
+    return res.redirect(`/api/zayavki/${inserted.insertedId.toString()}/pdf`);
+  } catch (err) {
+    console.error("GET ZAYAVKA PDF BY APPLICATION ERROR:", err);
+    return res.status(500).send("Ошибка формирования макета");
+  }
+});
+
 // ================= одна =================
 router.get("/:id", async (req, res) => {
   try {

@@ -33,8 +33,8 @@ export default function ApplicationView() {
         "form",
         JSON.stringify({
           ...safeApp,
+          sourcePage: "Просмотр заявки",
           status1: safeApp.status1 || "На одобрении",
-          status2: safeApp.status2 || "",
         })
       );
 
@@ -70,13 +70,13 @@ export default function ApplicationView() {
 
     const s = String(status).toLowerCase();
 
-    if (s.includes("прозвона нет")) return "status-red";
-    if (s.includes("прозвонен")) return "status-green";
-
-    if (s.includes("одобр")) return "status-orange";
-    if (s.includes("нов")) return "status-red";
-    if (s.includes("работ")) return "status-yellow";
-    if (s.includes("готов")) return "status-green";
+    if (s.includes("прозвон")) return "status-red";
+    if (s.includes("ждет фото")) return "status-yellow";
+    if (s.includes("одобр")) return "status-white";
+    if (s.includes("на одобрении")) return "status-white";
+    if (s.includes("выполня")) return "status-yellow";
+    if (s.includes("выпущ")) return "status-green";
+    if (s.includes("стоп")) return "status-red";
 
     return "status-default";
   };
@@ -159,13 +159,6 @@ export default function ApplicationView() {
       <div className="appview-card appview-info-card">
         <p><b>Дата создания:</b> {app.createdAt?.split("T")[0] || "-"}</p>
         <p><b>Номер заявки:</b> {app._id}</p>
-        <p>
-          <b>Статус №1:</b>{" "}
-          <span className={`appview-status ${getStatusClass(app.status1)}`}>
-            {app.status1 || "На одобрении"}
-          </span>
-        </p>
-
         <p><b>Компания:</b> {app.company || "-"}</p>
         <p><b>Брокер:</b> {app.broker || "-"}</p>
         <p><b>ФИО:</b> {app.fio || "-"}</p>
@@ -240,28 +233,13 @@ export default function ApplicationView() {
         <h3>Фотографии</h3>
 
         {photoEntries.length > 0 ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: "14px",
-              marginTop: "10px",
-            }}
-          >
+          <div className="appview-photo-grid">
             {photoEntries.map(({ key, file }, idx) => {
               const storedName = getStoredFileName(file);
               const originalName = getOriginalFileName(file);
 
               return (
-                <div
-                  key={`photo-${key}-${idx}`}
-                  style={{
-                    border: "1px solid #d9dee5",
-                    borderRadius: "10px",
-                    padding: "8px",
-                    background: "#fff",
-                  }}
-                >
+                <div key={`photo-${key}-${idx}`} className="appview-photo-item">
                   <a
                     href={`${API_URL}/uploads/${storedName}`}
                     target="_blank"
@@ -270,23 +248,11 @@ export default function ApplicationView() {
                     <img
                       src={`${API_URL}/uploads/${storedName}`}
                       alt={originalName}
-                      style={{
-                        width: "100%",
-                        height: "160px",
-                        objectFit: "cover",
-                        borderRadius: "8px",
-                        display: "block",
-                      }}
+                      className="appview-photo-preview"
                     />
                   </a>
 
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      fontSize: "13px",
-                      wordBreak: "break-word",
-                    }}
-                  >
+                  <div className="appview-photo-name">
                     {key} - {originalName}
                   </div>
                 </div>
@@ -326,7 +292,7 @@ export default function ApplicationView() {
         </p>
 
         <p>
-          <b>Статус №1:</b>{" "}
+          <b>Статус:</b>{" "}
           <select
             value={app.status1 || ""}
             className={`appview-status-select ${getStatusClass(app.status1)}`}
@@ -334,22 +300,14 @@ export default function ApplicationView() {
           >
             <option value="">—</option>
             <option>На одобрении</option>
-            <option>Новая</option>
-            <option>В работе</option>
-            <option>Готова</option>
-          </select>
-        </p>
-
-        <p>
-          <b>Статус №2:</b>{" "}
-          <select
-            value={app.status2 || ""}
-            className={`appview-status-select ${getStatusClass(app.status2)}`}
-            onChange={(e) => handleChange("status2", e.target.value)}
-          >
-            <option value="">—</option>
-            <option>Прозвона нет</option>
-            <option>Прозвонен</option>
+            <option>Одобрено</option>
+            <option>Выполняется</option>
+            <option>Ждем прозвона</option>
+            <option>Прозвон есть</option>
+            <option>Ждем фото</option>
+            <option>Фото есть</option>
+            <option>Выпущено</option>
+            <option>Стоп</option>
           </select>
         </p>
       </div>

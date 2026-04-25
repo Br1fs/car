@@ -39,8 +39,35 @@ export default function CarsManagement() {
           String(car.year || "").toLowerCase().includes(q)
         );
       })
-      .sort((a, b) => (a._id < b._id ? 1 : -1));
+      .sort((a, b) => {
+        const brandCmp = String(a.brand || "").localeCompare(String(b.brand || ""), "ru", {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (brandCmp !== 0) return brandCmp;
+        const modelCmp = String(a.model || "").localeCompare(String(b.model || ""), "ru", {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (modelCmp !== 0) return modelCmp;
+        return a._id < b._id ? 1 : -1;
+      });
   }, [cars, search]);
+
+  const groupedRows = useMemo(() => {
+    const rows = [];
+    let lastLetter = "";
+    filteredCars.forEach((car) => {
+      const brand = String(car.brand || "").trim();
+      const letter = brand ? brand[0].toUpperCase() : "#";
+      if (letter !== lastLetter) {
+        rows.push({ rowType: "letter", letter, _id: `letter-${letter}-${rows.length}` });
+        lastLetter = letter;
+      }
+      rows.push({ rowType: "car", car, _id: car._id });
+    });
+    return rows;
+  }, [filteredCars]);
 
   const visibleIds = filteredCars.map((car) => car._id);
 
@@ -117,6 +144,20 @@ export default function CarsManagement() {
     <div className="cars-page">
       <div className="page-container">
         <h2>База машин</h2>
+        <div className="cars-stats">
+          <div className="cars-stat-card">
+            <div className="label">Всего машин</div>
+            <div className="value">{cars.length}</div>
+          </div>
+          <div className="cars-stat-card">
+            <div className="label">Найдено по фильтру</div>
+            <div className="value">{filteredCars.length}</div>
+          </div>
+          <div className="cars-stat-card">
+            <div className="label">Выбрано</div>
+            <div className="value">{selectedIds.length}</div>
+          </div>
+        </div>
 
         <div className="cars-page-actions">
           <button
@@ -165,7 +206,23 @@ export default function CarsManagement() {
           <div className="actions">Действия</div>
         </div>
 
-        {filteredCars.map((car, index) => (
+        {groupedRows.map((entry, index) => {
+          if (entry.rowType === "letter") {
+            return (
+              <div key={entry._id} className="cars-brand-separator">
+                <span>{entry.letter}</span>
+              </div>
+            );
+          }
+          const car = entry.car;
+          const carNumber =
+            filteredCars.length -
+            groupedRows
+              .slice(0, index + 1)
+              .filter((item) => item.rowType === "car")
+              .length +
+            1;
+          return (
           <div key={car._id} className="cars-table-row">
             <div className="checkbox-col">
               <input
@@ -174,7 +231,7 @@ export default function CarsManagement() {
                 onChange={() => toggleOne(car._id)}
               />
             </div>
-            <div>{filteredCars.length - index}</div>
+            <div>{carNumber}</div>
             <div>{car.type || "-"}</div>
             <div>{car.typ || "-"}</div>
             <div>{car.brand || "-"}</div>
@@ -209,7 +266,8 @@ export default function CarsManagement() {
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {!filteredCars.length && (
           <div className="cars-empty">Машин не найдено</div>

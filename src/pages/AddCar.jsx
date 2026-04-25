@@ -182,6 +182,13 @@ export default function AddCar() {
       <div className="add-car-page">
         <div className="add-car-topbar">
           <h2>{id ? "Редактирование машины" : "Добавление новой машины"}</h2>
+          <button
+            type="button"
+            className="add-car-back-btn"
+            onClick={() => navigate("/cars-management")}
+          >
+            Назад
+          </button>
         </div>
 
         {loading ? (

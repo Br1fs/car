@@ -5,16 +5,17 @@
   align-items: flex-start;
   padding: 40px 20px;
   box-sizing: border-box;
-  background: #f5f7fb;
+  background: linear-gradient(180deg, #f3f7ff 0%, #eef3fb 100%);
 }
 
 .auth-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
   background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  padding: 28px;
+  border-radius: 20px;
+  box-shadow: 0 12px 36px rgba(37, 99, 235, 0.1);
+  border: 1px solid #e2e8f6;
+  padding: 30px;
   box-sizing: border-box;
 }
 
@@ -26,6 +27,13 @@
   color: #1f2937;
 }
 
+.auth-subtitle {
+  margin: -8px 0 18px 0;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -35,7 +43,7 @@
 .auth-input {
   width: 100%;
   padding: 14px 16px;
-  border: 1px solid #d7dce5;
+  border: 1px solid #d1d8e6;
   border-radius: 10px;
   font-size: 16px;
   box-sizing: border-box;
@@ -63,11 +71,18 @@
 }
 
 /* красная ошибка */
-.auth-message.error {
-  color: #e53935;
-  margin-top: 10px;
+.auth-message {
+  margin-top: 12px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.auth-message.error {
+  color: #dc2626;
+}
+
+.auth-message.success {
+  color: #15803d;
 }
 
 /* блок пароля */
@@ -85,4 +100,20 @@
   background: transparent;
   cursor: pointer;
   font-size: 16px;
+}
+
+.auth-link-text {
+  margin: 14px 0 0;
+  text-align: center;
+  color: #4b5563;
+}
+
+.auth-link-text a {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-link-text a:hover {
+  text-decoration: underline;
 }

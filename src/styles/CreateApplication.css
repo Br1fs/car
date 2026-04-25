@@ -1,11 +1,14 @@
 .app-form {
   display: flex;
-  gap: 20px;
-  padding: 20px;
-  margin-top: 40px;
+  gap: 14px;
+  padding: 12px 14px 22px;
+  margin-top: 18px;
   box-sizing: border-box;
   min-height: calc(100vh - 40px);
   align-items: stretch;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* обе колонки */
@@ -22,7 +25,7 @@
 
 /* левая колонка */
 .left {
-  flex: 0 0 35%;
+  flex: 0 0 32%;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -34,15 +37,48 @@
 
 /* правая колонка */
 .right {
-  flex: 1;
+  flex: 0 1 66%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   min-height: calc(100vh - 80px);
   max-height: calc(100vh - 80px);
   padding-bottom: 110px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.protocol-number-box {
+  margin-bottom: 10px;
+  margin-left: auto;
+  width: 220px;
+  background: #eaf4ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.protocol-number-box label {
+  display: block;
+  font-size: 12px;
+  color: #334155;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.protocol-number-box input {
+  width: 100%;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #fff;
 }
 .left input,
 .left select,
@@ -55,8 +91,67 @@
   font-size: 14px;
 }
 
+.left select:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.scan-field-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.scan-inline-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: -8px;
+}
+
+.scan-icon-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+
+.scan-document-btn {
+  border: 1px solid #0ea5e9;
+  background: #e0f2fe;
+  color: #0c4a6e;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .left h3 {
   margin-top: 20px;
+}
+
+.left-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #d6dee8;
+}
+
+.left-section-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.left-section-subtitle {
+  margin: 2px 0 12px;
+  font-size: 12px;
+  color: #64748b;
 }
 
 .left label {
@@ -64,7 +159,26 @@
 }
 
 .left input[type="file"] {
-  padding: 3px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #7dd3fc;
+  background: #e0f2fe;
+  color: #b91c1c;
+}
+
+.left input[type="file"]::file-selector-button {
+  border: none;
+  border-radius: 7px;
+  background: #0ea5e9;
+  color: #ffffff;
+  padding: 6px 10px;
+  margin-right: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.left input[type="file"]::file-selector-button:hover {
+  background: #0284c7;
 }
 
 .save-btn {
@@ -255,7 +369,7 @@ transform: none;
 .table-row {
   width: 100% !important;
   display: grid !important;
-  grid-template-columns: 260px minmax(500px, 1fr) !important;
+  grid-template-columns: 200px minmax(0, 1fr) !important;
   align-items: stretch;
 }
 
@@ -373,4 +487,134 @@ transform: none;
 
 .back-btn:hover {
   background: #e2e6ea;
+}
+body.dark {
+  background: #0f0f0f;
+  color: #eaeaea;
+}
+
+/* ===== LIGHT (по умолчанию) ===== */
+body {
+  background: #f5f5f5;
+  color: #111;
+  transition: all 0.3s ease;
+}
+
+.app-form {
+  background: #fff;
+}
+
+/* ===== DARK MODE ===== */
+body.dark {
+  background: #0f0f0f;
+  color: #eaeaea;
+}
+
+/* контейнеры */
+body.dark .app-form {
+  background: #121212;
+}
+
+body.dark .left,
+body.dark .right {
+  background: #1a1a1a;
+}
+
+/* inputs */
+body.dark input,
+body.dark select,
+body.dark textarea {
+  background: #222;
+  color: #fff;
+  border: 1px solid #444;
+}
+
+/* кнопки */
+body.dark button {
+  background: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+}
+
+body.dark button:hover {
+  background: #333;
+}
+
+/* модалки */
+body.dark .modal {
+  background: #1c1c1c;
+  color: #fff;
+}
+
+body.dark .modal-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* таблицы */
+body.dark .table-cell {
+  border-color: #333;
+}
+
+@media (max-width: 1280px) {
+  .app-form {
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 10px;
+    min-height: auto;
+  }
+
+  .left,
+  .right {
+    flex: 1 1 auto;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 18px;
+  }
+
+  .right {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .table-row {
+    grid-template-columns: 180px minmax(0, 1fr) !important;
+  }
+
+  .pdf-buttons {
+    left: 10px;
+    right: 10px;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-form {
+    padding: 8px 8px 14px;
+  }
+
+  .left,
+  .right {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .table-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .table-cell {
+    border-right: none !important;
+  }
+
+  .table-cell.label {
+    border-bottom: none;
+    background: #eef6ff;
+  }
+
+  .pdf-btn {
+    width: 100%;
+    text-align: center;
+  }
 }

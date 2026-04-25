@@ -10,6 +10,9 @@ export default function Protocols() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,10 +44,11 @@ export default function Protocols() {
 
   const filteredProtocols = useMemo(() => {
     const q = search.trim().toLowerCase();
-
-    if (!q) return protocols;
-
-    return protocols.filter((p) => {
+    const byDate = selectedDate
+      ? protocols.filter((p) => String(p.createdAt || "").slice(0, 10) === selectedDate)
+      : protocols;
+    if (!q) return byDate;
+    return byDate.filter((p) => {
       return (
         String(p.fio || "").toLowerCase().includes(q) ||
         String(p.vin || "").toLowerCase().includes(q) ||
@@ -55,7 +59,17 @@ export default function Protocols() {
         String(p.fuelType || "").toLowerCase().includes(q)
       );
     });
-  }, [protocols, search]);
+  }, [protocols, search, selectedDate]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedDate, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProtocols.length / pageSize));
+  const pagedProtocols = filteredProtocols.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const visibleIds = filteredProtocols.map((p) => p._id);
 
@@ -182,13 +196,21 @@ export default function Protocols() {
         </div>
       </div>
 
-      <input
-        className="protocols-search"
-        type="text"
-        placeholder="Поиск: ФИО, VIN, марка, модель, номер протокола..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <div className="protocols-toolbar">
+        <input
+          className="protocols-search"
+          type="text"
+          placeholder="Поиск: ФИО, VIN, марка, модель, номер протокола..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <input
+          className="protocols-date-filter"
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+        />
+      </div>
 
       <div className="protocols-table">
         <div className="protocols-table-header">
@@ -212,7 +234,7 @@ export default function Protocols() {
           <div className="actions">Действия</div>
         </div>
 
-        {filteredProtocols.map((p, index) => (
+        {pagedProtocols.map((p, index) => (
           <div key={p._id} className="protocols-table-row">
             <div className="checkbox-col">
               <input
@@ -221,7 +243,7 @@ export default function Protocols() {
                 onChange={() => toggleOne(p._id)}
               />
             </div>
-            <div>{filteredProtocols.length - index}</div>
+            <div>{(currentPage - 1) * pageSize + index + 1}</div>
             <div>{formatDateRu(p.createdAt)}</div>
             <div>{p.protocolNumber || "-"}</div>
             <div>{p.fio || "-"}</div>
@@ -249,6 +271,36 @@ export default function Protocols() {
             </div>
           </div>
         ))}
+      </div>
+      <div className="protocols-pagination">
+        <div>
+          <span>Показывать </span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+          >
+            {[10, 20, 30, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="protocols-pagination-controls">
+          <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+            Назад
+          </button>
+          <span>{currentPage} / {totalPages}</span>
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Вперед
+          </button>
+        </div>
       </div>
     </div>
   );

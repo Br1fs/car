@@ -16,6 +16,7 @@ import Zayavki from "./pages/Zayavki";
 import WorkNotes from "./pages/WorkNotes";
 import Declaration from "./pages/Declaration";
 import EPTS from "./pages/EPTS";
+import ActivityLogs from "./pages/ActivityLogs";
 
 import Register from "./pages/Register";
 import Login from "./pages/Login";
@@ -26,173 +27,185 @@ export default function App() {
   return (
     <BrowserRouter>
       <Navbar />
-      <div style={{ paddingTop: "2px", width: "100%" }}></div>
+      <main className="app-content">
+        <Routes>
+          <Route path="/" element={<Navigate to="/table" />} />
 
-      <Routes>
-        <Route path="/" element={<Navigate to="/table" />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/settings" element={<Settings />} />
 
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/settings" element={<Settings />} />
+          <Route
+            path="/table"
+            element={
+              <ProtectedRoute>
+                <ExcelTable />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/applications/new" element={<CreateApplication />} />
+          <Route
+            path="/applications"
+            element={
+              <ProtectedRoute>
+                <Applications />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/applications/new"
+            element={
+              <ProtectedRoute>
+                <CreateApplication />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/applications/:id"
+            element={
+              <ProtectedRoute>
+                <ApplicationView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/create-application/:id"
+            element={
+              <ProtectedRoute>
+                <CreateApplication />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/table"
-          element={
-            <ProtectedRoute>
-              <ExcelTable />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/cars-management"
+            element={
+              <ProtectedRoute>
+                <CarsManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cars/add"
+            element={
+              <ProtectedRoute>
+                <AddCar />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cars/:id"
+            element={
+              <ProtectedRoute>
+                <AddCar />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/applications"
-          element={
-            <ProtectedRoute>
-              <Applications />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/applications/new"
-          element={
-            <ProtectedRoute>
-              <CreateApplication />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/applications/:id"
-          element={
-            <ProtectedRoute>
-              <ApplicationView />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/create-application/:id"
-          element={
-            <ProtectedRoute>
-              <CreateApplication />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/protocols"
+            element={
+              <ProtectedRoute>
+                <Protocols />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/protocols/:id"
+            element={
+              <ProtectedRoute>
+                <ProtocolView />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/cars-management"
-          element={
-            <ProtectedRoute>
-              <CarsManagement />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/cars/add"
-          element={
-            <ProtectedRoute>
-              <AddCar />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/cars/:id"
-          element={
-            <ProtectedRoute>
-              <AddCar />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/protocol-templates"
+            element={
+              <ProtectedRoute>
+                <ProtocolTemplates />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/zayavki"
+            element={
+              <ProtectedRoute>
+                <Zayavki />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/decision"
+            element={
+              <ProtectedRoute>
+                <Decisions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dogovor"
+            element={
+              <ProtectedRoute>
+                <Dogovors />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/work-notes"
+            element={
+              <ProtectedRoute>
+                <WorkNotes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/declaration"
+            element={
+              <ProtectedRoute>
+                <Declaration />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Declaration"
+            element={<Navigate to="/declaration" replace />}
+          />
+          <Route
+            path="/EPTS"
+            element={
+              <ProtectedRoute>
+                <EPTS />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activity-logs"
+            element={
+              <ProtectedRoute adminOnly={true}>
+                <ActivityLogs />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/protocols"
-          element={
-            <ProtectedRoute>
-              <Protocols />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/protocols/:id"
-          element={
-            <ProtectedRoute>
-              <ProtocolView />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/protocol-templates"
-          element={
-            <ProtectedRoute>
-              <ProtocolTemplates />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/zayavki"
-          element={
-            <ProtectedRoute>
-              <Zayavki />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/decision"
-          element={
-            <ProtectedRoute>
-              <Decisions />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dogovor"
-          element={
-            <ProtectedRoute>
-              <Dogovors />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/work-notes"
-          element={
-            <ProtectedRoute>
-              <WorkNotes />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/Declaration"
-          element={
-            <ProtectedRoute>
-              <Declaration />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/EPTS"
-          element={
-            <ProtectedRoute>
-              <EPTS />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/protocol-templates/create"
-          element={
-            <ProtectedRoute>
-              <ProtocolTemplateForm isNew={true} />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/protocol-templates/:id/edit"
-          element={
-            <ProtectedRoute>
-              <ProtocolTemplateForm isNew={false} />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+          <Route
+            path="/protocol-templates/create"
+            element={
+              <ProtectedRoute>
+                <ProtocolTemplateForm isNew={true} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/protocol-templates/:id/edit"
+            element={
+              <ProtectedRoute>
+                <ProtocolTemplateForm isNew={false} />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </main>
     </BrowserRouter>
   );
 }

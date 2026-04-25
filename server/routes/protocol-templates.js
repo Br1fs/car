@@ -1,8 +1,27 @@
 import express from "express";
 import { getDB } from "../db.js";
 import { ObjectId } from "mongodb";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
 const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const templatesUploadDir = path.join(__dirname, "..", "uploads", "protocol-templates");
+if (!fs.existsSync(templatesUploadDir)) fs.mkdirSync(templatesUploadDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: templatesUploadDir,
+    filename: (req, file, cb) => {
+      const safeName = String(file.originalname || "template").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+      cb(null, `${Date.now()}-${safeName}`);
+    },
+  }),
+});
 
 // ✅ MATCH — выше /:id
 router.get("/match", async (req, res) => {
@@ -112,6 +131,22 @@ router.post("/", async (req, res) => {
     res.json({ _id: result.insertedId });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/upload", upload.single("templateFile"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Файл не передан" });
+    }
+    return res.json({
+      fileName: req.file.filename,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      filePath: req.file.filename,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

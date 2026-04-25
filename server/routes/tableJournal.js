@@ -1,7 +1,39 @@
 import express from "express";
+import mongoose from "mongoose";
 import TableJournal from "../models/TableJournal.js";
 
 const router = express.Router();
+
+function buildJournalPayload(row = {}) {
+  return {
+    applicationId: row.applicationId ?? "",
+    numeration: row.numeration ?? 0,
+    number: row.number ?? "",
+    fio: row.fio ?? "",
+    type: row.type ?? "",
+    brand: row.brand ?? "",
+    model: row.model ?? "",
+    color: row.color ?? "",
+    vinCode: row.vinCode ?? "",
+    broker: row.broker ?? "",
+    applicationStatus: row.applicationStatus ?? "",
+    submitDate: row.submitDate ?? "",
+    applicationNumber: row.applicationNumber ?? "",
+    specialist: row.specialist ?? "",
+    sbktsNumber: row.sbktsNumber ?? "",
+    comment: row.comment ?? "",
+    sbktsEptsStatus: row.sbktsEptsStatus ?? "",
+    eptsStatus: row.eptsStatus ?? "",
+  };
+}
+
+function getRowKey(row = {}) {
+  const rawId = row._id != null ? String(row._id) : "";
+  if (mongoose.Types.ObjectId.isValid(rawId)) return `id:${rawId}`;
+  if (row.applicationId) return `applicationId:${String(row.applicationId)}`;
+  if (row.number) return `number:${String(row.number)}`;
+  return null;
+}
 
 router.get("/", async (req, res) => {
   try {
@@ -18,26 +50,7 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const created = await TableJournal.create({
-      applicationId: req.body.applicationId ?? "",
-      numeration: req.body.numeration ?? 0,
-      number: req.body.number ?? "",
-      fio: req.body.fio ?? "",
-      type: req.body.type ?? "",
-      brand: req.body.brand ?? "",
-      model: req.body.model ?? "",
-      color: req.body.color ?? "",
-      vinCode: req.body.vinCode ?? "",
-      broker: req.body.broker ?? "",
-      applicationStatus: req.body.applicationStatus ?? "",
-      submitDate: req.body.submitDate ?? "",
-      applicationNumber: req.body.applicationNumber ?? "",
-      specialist: req.body.specialist ?? "",
-      sbktsNumber: req.body.sbktsNumber ?? "",
-      comment: req.body.comment ?? "",
-      sbktsEptsStatus: req.body.sbktsEptsStatus ?? "",
-      eptsStatus: req.body.eptsStatus ?? "",
-    });
+    const created = await TableJournal.create(buildJournalPayload(req.body));
 
     res.status(201).json(created);
   } catch (error) {
@@ -53,26 +66,7 @@ router.put("/:id", async (req, res) => {
   try {
     const updated = await TableJournal.findByIdAndUpdate(
       req.params.id,
-      {
-        applicationId: req.body.applicationId ?? "",
-        numeration: req.body.numeration ?? 0,
-        number: req.body.number ?? "",
-        fio: req.body.fio ?? "",
-        type: req.body.type ?? "",
-        brand: req.body.brand ?? "",
-        model: req.body.model ?? "",
-        color: req.body.color ?? "",
-        vinCode: req.body.vinCode ?? "",
-        broker: req.body.broker ?? "",
-        applicationStatus: req.body.applicationStatus ?? "",
-        submitDate: req.body.submitDate ?? "",
-        applicationNumber: req.body.applicationNumber ?? "",
-        specialist: req.body.specialist ?? "",
-        sbktsNumber: req.body.sbktsNumber ?? "",
-        comment: req.body.comment ?? "",
-        sbktsEptsStatus: req.body.sbktsEptsStatus ?? "",
-        eptsStatus: req.body.eptsStatus ?? "",
-      },
+      buildJournalPayload(req.body),
       { new: true, runValidators: true }
     );
 
@@ -85,6 +79,101 @@ router.put("/:id", async (req, res) => {
     console.error("PUT /api/table-journal/:id error:", error);
     res.status(500).json({
       message: "Ошибка при обновлении записи",
+      error: error.message,
+    });
+  }
+});
+
+router.post("/bulk", async (req, res) => {
+  try {
+    const rows = req.body;
+    if (!Array.isArray(rows)) {
+      return res.status(400).json({ message: "Ожидается массив строк" });
+    }
+    if (!rows.length) {
+      return res.json({
+        ok: true,
+        received: 0,
+        processed: 0,
+        inserted: 0,
+        modified: 0,
+        matched: 0,
+        upserted: 0,
+      });
+    }
+
+    const dedupedByKey = new Map();
+    let fallbackCounter = 0;
+
+    for (const row of rows) {
+      const baseKey = getRowKey(row);
+      const key = baseKey || `fallback:${fallbackCounter++}`;
+      dedupedByKey.set(key, row);
+    }
+
+    const operations = [];
+
+    for (const [key, row] of dedupedByKey.entries()) {
+      const payload = buildJournalPayload(row);
+      let filter = null;
+      let upsert = true;
+
+      if (key.startsWith("id:")) {
+        filter = { _id: new mongoose.Types.ObjectId(key.slice(3)) };
+      } else if (key.startsWith("applicationId:")) {
+        filter = { applicationId: payload.applicationId };
+      } else if (key.startsWith("number:")) {
+        filter = { number: payload.number };
+      } else {
+        upsert = false;
+      }
+
+      if (filter) {
+        operations.push({
+          updateOne: {
+            filter,
+            update: { $set: payload },
+            upsert,
+          },
+        });
+      } else {
+        operations.push({
+          insertOne: {
+            document: payload,
+          },
+        });
+      }
+    }
+
+    if (!operations.length) {
+      return res.json({
+        ok: true,
+        received: rows.length,
+        processed: 0,
+        inserted: 0,
+        modified: 0,
+        matched: 0,
+        upserted: 0,
+      });
+    }
+
+    const result = await TableJournal.bulkWrite(operations, {
+      ordered: false,
+    });
+
+    res.json({
+      ok: true,
+      received: rows.length,
+      processed: operations.length,
+      inserted: result.insertedCount ?? 0,
+      modified: result.modifiedCount ?? 0,
+      matched: result.matchedCount ?? 0,
+      upserted: result.upsertedCount ?? 0,
+    });
+  } catch (error) {
+    console.error("POST /api/table-journal/bulk error:", error);
+    res.status(500).json({
+      message: "Ошибка при пакетном обновлении журнала",
       error: error.message,
     });
   }

@@ -1,8 +1,9 @@
 .cars-page {
   padding: 24px;
-  background: #f8fafc;
-  min-height: 100vh;
+  background: linear-gradient(180deg, #f3f8ff 0%, #eef4ff 100%);
+  min-height: calc(100vh - 48px);
   box-sizing: border-box;
+  border-radius: 18px;
 }
 
 .cars-page-top {
@@ -17,7 +18,34 @@
 .cars-page-top h2 {
   margin: 0;
   font-size: 28px;
-  color: #0f172a;
+  color: #0b2540;
+}
+
+.cars-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 16px;
+}
+
+.cars-stat-card {
+  background: #fff;
+  border: 1px solid #d8e6fb;
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-width: 170px;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.08);
+}
+
+.cars-stat-card .label {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.cars-stat-card .value {
+  color: #0b2540;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .cars-page-actions {
@@ -39,12 +67,12 @@
 }
 
 .add-car-btn {
-  background: #2563eb;
+  background: #0284c7;
   color: #fff;
 }
 
 .add-car-btn:hover {
-  background: #1d4ed8;
+  background: #0369a1;
 }
 
 .bulk-delete-btn {
@@ -63,6 +91,11 @@
 }
 
 .cars-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background: linear-gradient(180deg, #f3f8ff 0%, #eef4ff 100%);
+  padding: 8px 0 10px;
   margin-bottom: 18px;
 }
 
@@ -79,9 +112,10 @@
 .cars-table {
   width: 100%;
   border: 1px solid #dbe2ea;
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
   background: #fff;
+  box-shadow: 0 8px 24px rgba(2, 132, 199, 0.08);
 }
 
 .cars-table-header,
@@ -90,18 +124,18 @@
   grid-template-columns:
     44px
     70px
-    200px
-    200px
-    200px
-    200px
-    100px
-    100px
-    200px;
+    240px
+    240px
+    220px
+    240px
+    130px
+    120px
+    230px;
   align-items: center;
 }
 
 .cars-table-header {
-  background: #eaf2ff;
+  background: #dff0ff;
   font-weight: 700;
   color: #0f172a;
   border-bottom: 1px solid #dbe2ea;
@@ -132,6 +166,16 @@
   border-bottom: none;
 }
 
+.cars-brand-separator {
+  padding: 8px 14px;
+  background: #eef6ff;
+  border-top: 1px solid #dbe5f0;
+  border-bottom: 1px solid #dbe5f0;
+  color: #1e3a8a;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
 .checkbox-col {
   display: flex;
   justify-content: center;
@@ -152,12 +196,12 @@
 }
 
 .open-btn {
-  background: #2563eb;
+  background: #0284c7;
   color: #fff;
 }
 
 .open-btn:hover {
-  background: #1d4ed8;
+  background: #0369a1;
 }
 
 .delete-btn {
@@ -181,6 +225,35 @@
 
   .cars-table-header,
   .cars-table-row {
-    min-width: 1020px;
+    min-width: 1450px;
   }
+}
+
+@media (max-width: 700px) {
+  .cars-page {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .cars-page-header input {
+    max-width: 100%;
+  }
+
+  .cars-page-actions {
+    width: 100%;
+  }
+}
+
+.car-detail-page {
+  max-width: 860px;
+  margin: 16px auto 24px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  box-sizing: border-box;
+}
+
+.car-detail-page h2 {
+  margin: 0 0 14px;
 }

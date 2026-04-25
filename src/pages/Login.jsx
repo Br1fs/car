@@ -13,7 +13,7 @@ export default function Login() {
   });
 
   const [message, setMessage] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // 👈 новое
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -36,7 +36,6 @@ export default function Login() {
     } catch (error) {
       console.error(error);
 
-      // 👇 всегда показываем нормальную ошибку
       setMessage("Неверный логин или пароль");
     }
   };
@@ -45,6 +44,7 @@ export default function Login() {
     <div className="auth-page">
       <div className="auth-card">
         <h1 className="auth-title">Вход</h1>
+        <p className="auth-subtitle">Войдите в систему по логину и паролю</p>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <input
@@ -53,9 +53,9 @@ export default function Login() {
             value={form.login}
             onChange={handleChange}
             className="auth-input"
+            required
           />
 
-          {/* 👇 пароль + кнопка показать */}
           <div className="password-wrapper">
             <input
               name="password"
@@ -64,6 +64,7 @@ export default function Login() {
               value={form.password}
               onChange={handleChange}
               className="auth-input"
+              required
             />
 
             <button

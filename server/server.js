@@ -16,6 +16,8 @@ import dogovorsRouter from "./routes/dogovors.js";
 import zayavkiRouter from "./routes/zayavki.js";
 import eptsJournalRoutes from "./routes/eptsJournal.js";
 import tableJournalRoutes from "./routes/tableJournal.js";
+import declarationsRoutes from "./routes/declarations.js";
+import workNotesRoutes from "./routes/workNotes.js";
 
 // НОВЫЕ роуты
 import authRoutes from "./routes/authRoutes.js";
@@ -43,6 +45,8 @@ app.use("/api/weather", weatherRoutes);
 app.use("/api/decisions", decisionsRouter);
 app.use("/api/dogovors", dogovorsRouter);
 app.use("/api/zayavki", zayavkiRouter);
+app.use("/api/declarations", declarationsRoutes);
+app.use("/api/work-notes", workNotesRoutes);
 
 // ===== НОВЫЕ роуты авторизации =====
 app.use("/api/auth", authRoutes);
