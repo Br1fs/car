@@ -281,6 +281,68 @@
   border: 1px solid #ced4da;
 }
 
+html[data-theme="dark"] .appview-page .status-orange,
+html[data-theme="dark"] .appview-page .status-red,
+html[data-theme="dark"] .appview-page .status-yellow,
+html[data-theme="dark"] .appview-page .status-green,
+html[data-theme="dark"] .appview-page .status-default,
+html[data-theme="dark"] .appview-page .status-white {
+  background: #0f4e73;
+  color: #f8fafc;
+  border: 1px solid #3b6b86;
+}
+
+html[data-theme="dark"] .appview-page {
+  background: #082f49;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .appview-header,
+html[data-theme="dark"] .appview-card,
+html[data-theme="dark"] .appview-bottom-bar,
+html[data-theme="dark"] .appview-photo-item {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .appview-header h2,
+html[data-theme="dark"] .appview-card h3,
+html[data-theme="dark"] .appview-card p,
+html[data-theme="dark"] .appview-card b,
+html[data-theme="dark"] .appview-photo-name,
+html[data-theme="dark"] .appview-file-item a {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .appview-card p,
+html[data-theme="dark"] .appview-docs-card li {
+  border-bottom-color: #2d5d7a;
+}
+
+html[data-theme="dark"] .appview-divider {
+  background: #2d5d7a;
+}
+
+html[data-theme="dark"] .appview-car-grid > div {
+  background: #0d4466;
+  border-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .appview-page input,
+html[data-theme="dark"] .appview-page select {
+  background: #0d4466;
+  border-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .appview-page input:focus,
+html[data-theme="dark"] .appview-page select:focus {
+  border-color: #4b7d99;
+  box-shadow: 0 0 0 3px rgba(75, 125, 153, 0.25);
+}
+
 @media (max-width: 992px) {
   .appview-car-grid {
     grid-template-columns: repeat(2, minmax(140px, 1fr));

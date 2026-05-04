@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import "../styles/Settings.css";
 import { API_URL } from "../config";
 
 export default function Settings() {
+  const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const token = localStorage.getItem("token");
 
@@ -31,6 +33,16 @@ export default function Settings() {
 
   const syncUserToLocalStorage = (nextUser) => {
     localStorage.setItem("user", JSON.stringify(nextUser));
+  };
+
+  const handleUnauthorized = (error) => {
+    if (error?.response?.status !== 401) return false;
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setAdminMessageError(true);
+    setMessage("Сессия истекла. Войдите снова.");
+    navigate("/login", { replace: true });
+    return true;
   };
 
   useEffect(() => {
@@ -69,6 +81,7 @@ export default function Settings() {
       setUsers(res.data);
       setAdminMessageError(false);
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setAdminMessageError(true);
       setMessage(error?.response?.data?.message || "Ошибка загрузки пользователей");
     } finally {
@@ -97,6 +110,7 @@ export default function Settings() {
       );
       fetchUsers();
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setAdminMessageError(true);
       setMessage(error?.response?.data?.message || "Ошибка одобрения");
     }
@@ -115,6 +129,7 @@ export default function Settings() {
       );
       fetchUsers();
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setAdminMessageError(true);
       setMessage(error?.response?.data?.message || "Ошибка отклонения");
     }
@@ -129,6 +144,7 @@ export default function Settings() {
       });
       fetchUsers();
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setAdminMessageError(true);
       setMessage(error?.response?.data?.message || "Ошибка удаления");
     }
@@ -145,6 +161,7 @@ export default function Settings() {
       setMessage("Изменения пользователя сохранены");
       fetchUsers();
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setAdminMessageError(true);
       setMessage(error?.response?.data?.message || "Ошибка обновления пользователя");
     }
@@ -165,6 +182,7 @@ export default function Settings() {
       syncUserToLocalStorage(res.data.user);
       setProfileMessage(res.data.message || "Профиль обновлен");
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setProfileError(true);
       setProfileMessage(error?.response?.data?.message || "Ошибка сохранения профиля");
     }
@@ -188,6 +206,7 @@ export default function Settings() {
         confirmNewPassword: "",
       });
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setPasswordError(true);
       setPasswordMessage(error?.response?.data?.message || "Ошибка смены пароля");
     }
@@ -213,6 +232,7 @@ export default function Settings() {
       setProfileError(false);
       setProfileMessage(res.data.message || "Фото профиля обновлено");
     } catch (error) {
+      if (handleUnauthorized(error)) return;
       setProfileError(true);
       setProfileMessage(error?.response?.data?.message || "Ошибка загрузки фото профиля");
     }

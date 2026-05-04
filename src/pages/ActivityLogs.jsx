@@ -6,6 +6,7 @@ import { API_URL } from "../config";
 
 const actionLabels = {
   create_application: "Создание заявки",
+  delete_application: "Удаление заявки",
   update_application: "Изменение заявки",
   specialist_change: "Смена специалиста",
   status_change: "Смена статуса",
@@ -31,6 +32,9 @@ function getActionText(row) {
   }
   if (row.action === "create_application") {
     return `${base} - создать заявку`;
+  }
+  if (row.action === "delete_application") {
+    return `${base} - удалить заявку`;
   }
   if (row.action === "create_declaration") {
     return `${base} - сформировать АКТ`;
@@ -78,6 +82,9 @@ function getTimeInterval(row) {
 
 export default function ActivityLogs() {
   const token = localStorage.getItem("token");
+  const [isDarkTheme, setIsDarkTheme] = useState(
+    () => document.documentElement.getAttribute("data-theme") === "dark"
+  );
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actorName, setActorName] = useState("");
@@ -130,6 +137,15 @@ export default function ActivityLogs() {
 
   useEffect(() => {
     loadLogs();
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setIsDarkTheme(root.getAttribute("data-theme") === "dark");
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
   }, []);
 
   const actionOptions = useMemo(() => {
@@ -289,12 +305,20 @@ export default function ActivityLogs() {
   const getKpiCellStyle = (field, value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) {
-      return { padding: "9px 12px", borderBottom: "1px solid #f1f5f9" };
+      return {
+        padding: "9px 12px",
+        borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}`,
+        color: isDarkTheme ? "#f8fafc" : "#0f172a",
+      };
     }
 
     const extremes = kpiExtremes[field];
     if (!extremes || extremes.min === null || extremes.max === null) {
-      return { padding: "9px 12px", borderBottom: "1px solid #f1f5f9" };
+      return {
+        padding: "9px 12px",
+        borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}`,
+        color: isDarkTheme ? "#f8fafc" : "#0f172a",
+      };
     }
 
     let background = "transparent";
@@ -302,18 +326,18 @@ export default function ActivityLogs() {
     let fontWeight = 400;
 
     if (numeric === extremes.min) {
-      background = "#dcfce7";
-      color = "#166534";
+      background = isDarkTheme ? "#14532d" : "#dcfce7";
+      color = isDarkTheme ? "#dcfce7" : "#166534";
       fontWeight = 700;
     } else if (numeric === extremes.max) {
-      background = "#fee2e2";
-      color = "#991b1b";
+      background = isDarkTheme ? "#7f1d1d" : "#fee2e2";
+      color = isDarkTheme ? "#fee2e2" : "#991b1b";
       fontWeight = 700;
     }
 
     return {
       padding: "9px 12px",
-      borderBottom: "1px solid #f1f5f9",
+      borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}`,
       background,
       color,
       fontWeight,
@@ -370,20 +394,34 @@ export default function ActivityLogs() {
   };
 
   return (
-    <div style={{ padding: "10px 18px 24px" }}>
-      <h2 style={{ marginTop: 0 }}>Журнал действий пользователей</h2>
+    <div style={{ padding: "10px 18px 24px", color: isDarkTheme ? "#f8fafc" : "#0f172a" }}>
+      <h2 style={{ marginTop: 0, color: isDarkTheme ? "#f8fafc" : "#0f172a" }}>Журнал действий пользователей</h2>
 
-      <div style={{ marginTop: 12, background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10 }}>
-        <div style={{ padding: "10px 12px", fontWeight: 700, borderBottom: "1px solid #eef2f7" }}>
+      <div
+        style={{
+          marginTop: 12,
+          background: isDarkTheme ? "#0b3a58" : "#fff",
+          border: `1px solid ${isDarkTheme ? "#2d5d7a" : "#dbe3ee"}`,
+          borderRadius: 10,
+        }}
+      >
+        <div
+          style={{
+            padding: "10px 12px",
+            fontWeight: 700,
+            borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#eef2f7"}`,
+            color: isDarkTheme ? "#f8fafc" : "#0f172a",
+          }}
+        >
           KPI по пользователям
         </div>
         {perUserKpi.length === 0 ? (
-          <div style={{ padding: 16, color: "#64748b" }}>Нет данных для KPI</div>
+          <div style={{ padding: 16, color: isDarkTheme ? "#cbd5e1" : "#64748b" }}>Нет данных для KPI</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ background: "#f8fafc" }}>
+                <tr style={{ background: isDarkTheme ? "#0d4466" : "#f8fafc" }}>
                   {[
                     "Пользователь",
                     "Создано заявок",
@@ -398,8 +436,9 @@ export default function ActivityLogs() {
                       style={{
                         textAlign: "left",
                         padding: "10px 12px",
-                        borderBottom: "1px solid #e2e8f0",
+                        borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#e2e8f0"}`,
                         whiteSpace: "nowrap",
+                        color: isDarkTheme ? "#f8fafc" : "#0f172a",
                       }}
                     >
                       {h}
@@ -410,13 +449,13 @@ export default function ActivityLogs() {
               <tbody>
                 {perUserKpi.map((item) => (
                   <tr key={item.userName}>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>
                       {item.userName}
                     </td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>
                       {item.createdCount}
                     </td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>
                       {item.issuedCount}
                     </td>
                     <td style={getKpiCellStyle("createdAvgMinutes", item.createdAvgMinutes)}>
@@ -447,22 +486,23 @@ export default function ActivityLogs() {
           marginBottom: 12,
         }}
       >
-        <MetricCard label="Всего действий" value={metrics.total} />
-        <MetricCard label="Создано заявок" value={metrics.createdApplications} />
-        <MetricCard label="Завершено (Выпущено)" value={metrics.completedExecutions} />
-        <MetricCard label="Среднее время выполнения (мин)" value={metrics.avgExecutionMinutes} />
-        <MetricCard label="Среднее Ждет фото -> Фото есть (мин)" value={metrics.avgPhotoMinutes} />
-        <MetricCard label="Среднее Ждет прозвона -> Прозвон есть (мин)" value={metrics.avgCallMinutes} />
+        <MetricCard label="Всего действий" value={metrics.total} isDarkTheme={isDarkTheme} />
+        <MetricCard label="Создано заявок" value={metrics.createdApplications} isDarkTheme={isDarkTheme} />
+        <MetricCard label="Завершено (Выпущено)" value={metrics.completedExecutions} isDarkTheme={isDarkTheme} />
+        <MetricCard label="Среднее время выполнения (мин)" value={metrics.avgExecutionMinutes} isDarkTheme={isDarkTheme} />
+        <MetricCard label="Среднее Ждет фото -> Фото есть (мин)" value={metrics.avgPhotoMinutes} isDarkTheme={isDarkTheme} />
+        <MetricCard label="Среднее Ждет прозвона -> Прозвон есть (мин)" value={metrics.avgCallMinutes} isDarkTheme={isDarkTheme} />
         <MetricCard
           label="Самый активный пользователь"
           value={`${metrics.topActorName} (${metrics.topActorCount})`}
+          isDarkTheme={isDarkTheme}
         />
       </div>
 
       <div
         style={{
-          background: "#ffffff",
-          border: "1px solid #cbd5e1",
+          background: isDarkTheme ? "#0b3a58" : "#ffffff",
+          border: `1px solid ${isDarkTheme ? "#2d5d7a" : "#cbd5e1"}`,
           borderRadius: 12,
           padding: 12,
           display: "flex",
@@ -472,7 +512,7 @@ export default function ActivityLogs() {
           position: "sticky",
           top: 0,
           zIndex: 8,
-          boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
+          boxShadow: isDarkTheme ? "0 2px 10px rgba(0,0,0,0.28)" : "0 2px 8px rgba(15,23,42,0.06)",
         }}
       >
         <input
@@ -506,24 +546,32 @@ export default function ActivityLogs() {
         </button>
       </div>
 
-      <div style={{ marginTop: 12, background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10 }}>
+      <div
+        style={{
+          marginTop: 12,
+          background: isDarkTheme ? "#0b3a58" : "#fff",
+          border: `1px solid ${isDarkTheme ? "#2d5d7a" : "#dbe3ee"}`,
+          borderRadius: 10,
+        }}
+      >
         {loading ? (
           <div style={{ padding: 16 }}>Загрузка...</div>
         ) : rows.length === 0 ? (
-          <div style={{ padding: 16, color: "#64748b" }}>Записей пока нет</div>
+          <div style={{ padding: 16, color: isDarkTheme ? "#cbd5e1" : "#64748b" }}>Записей пока нет</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ background: "#f8fafc" }}>
+                <tr style={{ background: isDarkTheme ? "#0d4466" : "#f8fafc" }}>
                   {["Время", "Пользователь", "Специалист", "Действие", "Объект", "Длительность (мин)", "Где сделано"].map((h) => (
                     <th
                       key={h}
                       style={{
                         textAlign: "left",
                         padding: "10px 12px",
-                        borderBottom: "1px solid #e2e8f0",
+                        borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#e2e8f0"}`,
                         whiteSpace: "nowrap",
+                        color: isDarkTheme ? "#f8fafc" : "#0f172a",
                       }}
                     >
                       {h}
@@ -534,21 +582,21 @@ export default function ActivityLogs() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row._id}>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}`, whiteSpace: "nowrap" }}>
                       {getTimeInterval(row)}
                     </td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>{row.actorName || "-"}</td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>{getSpecialist(row)}</td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>{row.actorName || "-"}</td>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>{getSpecialist(row)}</td>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>
                       {getActionText(row)}
                     </td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>
                       {getObjectLabel(row)}
                     </td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>
                       {row.durationMinutes ?? "-"}
                     </td>
-                    <td style={{ padding: "9px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "9px 12px", borderBottom: `1px solid ${isDarkTheme ? "#2d5d7a" : "#f1f5f9"}` }}>
                       {getDetailsText(row)}
                     </td>
                   </tr>
@@ -562,11 +610,20 @@ export default function ActivityLogs() {
   );
 }
 
-function MetricCard({ label, value }) {
+function MetricCard({ label, value, isDarkTheme }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: "10px 12px" }}>
-      <div style={{ fontSize: 12, color: "#64748b" }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", lineHeight: 1.2 }}>{value}</div>
+    <div
+      style={{
+        background: isDarkTheme ? "#0b3a58" : "#fff",
+        border: `1px solid ${isDarkTheme ? "#2d5d7a" : "#dbe3ee"}`,
+        borderRadius: 10,
+        padding: "10px 12px",
+      }}
+    >
+      <div style={{ fontSize: 12, color: isDarkTheme ? "#cbd5e1" : "#64748b" }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 700, color: isDarkTheme ? "#f8fafc" : "#0f172a", lineHeight: 1.2 }}>
+        {value}
+      </div>
     </div>
   );
 }

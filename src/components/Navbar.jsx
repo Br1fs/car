@@ -5,8 +5,15 @@ import { API_URL } from "../config";
 
 export default function Navbar() {
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      return localStorage.getItem("theme") === "dark";
+    } catch {
+      return false;
+    }
+  });
 
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -59,6 +66,20 @@ export default function Navbar() {
     );
   }, [collapsed]);
 
+  useEffect(() => {
+    try {
+      if (darkMode) {
+        document.documentElement.setAttribute("data-theme", "dark");
+        localStorage.setItem("theme", "dark");
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+        localStorage.setItem("theme", "light");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [darkMode]);
+
   return (
     <>
       <button className="mobile-menu-button" onClick={() => setMobileOpen((p) => !p)} type="button">
@@ -103,6 +124,18 @@ export default function Navbar() {
         )}
 
         <div className="sidebar-footer">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setDarkMode((v) => !v)}
+            title={darkMode ? "Светлая тема" : "Тёмная тема"}
+            aria-pressed={darkMode}
+          >
+            <span className="sidebar-icon" aria-hidden>
+              {darkMode ? "☀️" : "🌙"}
+            </span>
+            {!collapsed && <span>{darkMode ? "Светлая тема" : "Тёмная тема"}</span>}
+          </button>
           {token && user ? (
             <>
               <div className="sidebar-user">

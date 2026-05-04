@@ -7,6 +7,7 @@ import { API_URL } from "../config";
 export default function ApplicationView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("user") || "null");
   const [app, setApp] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -56,7 +57,12 @@ export default function ApplicationView() {
   const deleteApplication = async () => {
     if (!window.confirm("Удалить заявку?")) return;
     try {
-      await axios.delete(`${API_URL}/api/applications/${id}`);
+      await axios.delete(`${API_URL}/api/applications/${id}`, {
+        data: {
+          actorName: user?.login || user?.name || "unknown",
+          sourcePage: "Просмотр заявки",
+        },
+      });
       alert("Заявка удалена");
       navigate("/applications");
     } catch (err) {

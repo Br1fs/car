@@ -13,6 +13,77 @@ body {
   background-color: #eaf6ff;
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] body {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .app-content {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .sidebar {
+  background: linear-gradient(180deg, #0c4a6e 0%, #082f49 100%);
+  box-shadow: 6px 0 28px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] .mobile-menu-button {
+  background: #0c4a6e;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #94a3b8;
+}
+
+.route-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 40vh;
+  font-size: 15px;
+  color: #64748b;
+}
+
+html[data-theme="dark"] .route-fallback {
+  color: #94a3b8;
+}
+
+.route-fallback-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #cbd5e1;
+  border-top-color: #0284c7;
+  border-radius: 50%;
+  animation: route-fallback-spin 0.7s linear infinite;
+}
+
+html[data-theme="dark"] .route-fallback-spinner {
+  border-color: #334155;
+  border-top-color: #38bdf8;
+}
+
+@keyframes route-fallback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .protocol-template-container {
   margin: 52px 0 0 0;
 }
@@ -65,4 +136,132 @@ html[data-sidebar-state="collapsed"] .app-content {
   .page-container {
     padding: 0 8px 12px;
   }
+}
+
+html[data-theme="dark"] .protocols-page,
+html[data-theme="dark"] .decisions-page,
+html[data-theme="dark"] .dogovors-page,
+html[data-theme="dark"] .zayavki-page,
+html[data-theme="dark"] .cars-page,
+html[data-theme="dark"] .car-detail-page,
+html[data-theme="dark"] .add-car-page,
+html[data-theme="dark"] .settings-page,
+html[data-theme="dark"] .auth-page,
+html[data-theme="dark"] .protocol-templates-page {
+  background: #0b1220;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .settings-card,
+html[data-theme="dark"] .settings-form-card,
+html[data-theme="dark"] .auth-card,
+html[data-theme="dark"] .protocol-template-card,
+html[data-theme="dark"] .cars-stat-card,
+html[data-theme="dark"] .protocols-table,
+html[data-theme="dark"] .decisions-table,
+html[data-theme="dark"] .dogovors-table,
+html[data-theme="dark"] .zayavki-table,
+html[data-theme="dark"] .cars-table,
+html[data-theme="dark"] .decisions-empty,
+html[data-theme="dark"] .dogovors-empty,
+html[data-theme="dark"] .zayavki-empty {
+  background: #111827;
+  color: #e2e8f0;
+  border-color: #334155;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] .settings-title,
+html[data-theme="dark"] .settings-subtitle,
+html[data-theme="dark"] .settings-message,
+html[data-theme="dark"] .settings-user-info,
+html[data-theme="dark"] .auth-title,
+html[data-theme="dark"] .auth-subtitle,
+html[data-theme="dark"] .auth-link-text,
+html[data-theme="dark"] .protocols-header h2,
+html[data-theme="dark"] .cars-page-top h2,
+html[data-theme="dark"] .decisions-page h2,
+html[data-theme="dark"] .dogovors-page h2,
+html[data-theme="dark"] .zayavki-page h2 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-toolbar,
+html[data-theme="dark"] .cars-page-header,
+html[data-theme="dark"] .add-car-topbar {
+  background: #0b1220;
+}
+
+html[data-theme="dark"] .protocols-table-header,
+html[data-theme="dark"] .decisions-table-header,
+html[data-theme="dark"] .dogovors-table-header,
+html[data-theme="dark"] .zayavki-table-header,
+html[data-theme="dark"] .cars-table-header {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-table-header > div,
+html[data-theme="dark"] .protocols-table-row > div,
+html[data-theme="dark"] .decisions-table-header > div,
+html[data-theme="dark"] .decisions-table-row > div,
+html[data-theme="dark"] .dogovors-table-header > div,
+html[data-theme="dark"] .dogovors-table-row > div,
+html[data-theme="dark"] .zayavki-table-header > div,
+html[data-theme="dark"] .zayavki-table-row > div,
+html[data-theme="dark"] .cars-table-header > div,
+html[data-theme="dark"] .cars-table-row > div,
+html[data-theme="dark"] .settings-table th,
+html[data-theme="dark"] .settings-table td {
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .protocols-table-row:hover,
+html[data-theme="dark"] .decisions-table-row:hover,
+html[data-theme="dark"] .dogovors-table-row:hover,
+html[data-theme="dark"] .zayavki-table-row:hover,
+html[data-theme="dark"] .cars-table-row:hover {
+  background: #1f2937;
+}
+
+html[data-theme="dark"] .settings-table th {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-form-row,
+html[data-theme="dark"] .settings-input,
+html[data-theme="dark"] .settings-cell-input,
+html[data-theme="dark"] .settings-cell-select,
+html[data-theme="dark"] .auth-input,
+html[data-theme="dark"] .protocol-templates-form input,
+html[data-theme="dark"] .protocol-templates-form select {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+html[data-theme="dark"] .cars-form-row label,
+html[data-theme="dark"] .cars-stat-card .label,
+html[data-theme="dark"] .cars-empty,
+html[data-theme="dark"] .protocols-empty,
+html[data-theme="dark"] .decisions-empty,
+html[data-theme="dark"] .dogovors-empty,
+html[data-theme="dark"] .zayavki-empty {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .cars-stat-card .value,
+html[data-theme="dark"] .cars-brand-separator {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-brand-separator {
+  background: #1e293b;
+  border-top-color: #334155;
+  border-bottom-color: #334155;
+}
+
+html[data-theme="dark"] .add-car-bottom-bar {
+  background: linear-gradient(to top, #0f172a 70%, rgba(15, 23, 42, 0));
 }

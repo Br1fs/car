@@ -67,7 +67,12 @@ export default function Applications() {
     try {
       await Promise.all(
         selectedIds.map((id) =>
-          axios.delete(`${API_URL}/api/applications/${id}`)
+          axios.delete(`${API_URL}/api/applications/${id}`, {
+            data: {
+              actorName: user?.login || user?.name || "unknown",
+              sourcePage: "Список заявок",
+            },
+          })
         )
       );
 
@@ -105,9 +110,12 @@ export default function Applications() {
       try {
         const res = await axios.get(`${API_URL}/api/applications`);
 
-        const sorted = [...res.data].sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        );
+        const sorted = [...res.data].sort((a, b) => {
+          const aManual = a?.source === "journal_manual" ? 1 : 0;
+          const bManual = b?.source === "journal_manual" ? 1 : 0;
+          if (aManual !== bManual) return bManual - aManual;
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
 
         setApps(sorted);
       } catch (err) {
@@ -373,7 +381,13 @@ export default function Applications() {
                   if (!window.confirm("Удалить заявку?")) return;
 
                   await axios.delete(
-                    `${API_URL}/api/applications/${app._id}`
+                    `${API_URL}/api/applications/${app._id}`,
+                    {
+                      data: {
+                        actorName: user?.login || user?.name || "unknown",
+                        sourcePage: "Список заявок",
+                      },
+                    }
                   );
 
                   setApps((prev) =>

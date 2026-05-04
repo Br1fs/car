@@ -287,3 +287,72 @@
   padding: 6px 10px;
   background: #fff;
 }
+
+html[data-theme="dark"] .protocols-page {
+  background: #082f49;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-header h2 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-toolbar {
+  background: #082f49;
+}
+
+html[data-theme="dark"] .protocols-search,
+html[data-theme="dark"] .protocols-date-filter,
+html[data-theme="dark"] .protocols-pagination button,
+html[data-theme="dark"] .protocols-pagination select {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-table {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .protocols-table-header {
+  background: #0d4466;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-table-header > div,
+html[data-theme="dark"] .protocols-table-row > div {
+  border-right-color: #2d5d7a;
+  border-bottom-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-table-row:hover {
+  background: #0f4e73;
+}
+
+html[data-theme="dark"] .protocols-empty {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .protocols-settings-btn,
+html[data-theme="dark"] .protocols-bulk-delete-btn,
+html[data-theme="dark"] .download-btn,
+html[data-theme="dark"] .delete-btn {
+  background: #0d4466;
+  border: 1px solid #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .protocols-settings-btn:hover,
+html[data-theme="dark"] .protocols-bulk-delete-btn:hover,
+html[data-theme="dark"] .download-btn:hover,
+html[data-theme="dark"] .delete-btn:hover {
+  background: #0f4e73;
+}
+
+html[data-theme="dark"] .protocols-bulk-delete-btn:disabled {
+  background: #0b3a58;
+  color: #94a3b8;
+}

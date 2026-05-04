@@ -182,3 +182,62 @@
 .settings-btn:hover {
   opacity: 0.92;
 }
+
+html[data-theme="dark"] .settings-page {
+  background: #082f49;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .settings-card {
+  background: #0b3a58;
+  border-color: #2d5d7a;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .settings-form-card {
+  background: #0d4466;
+  border-color: #2d5d7a;
+}
+
+html[data-theme="dark"] .settings-title,
+html[data-theme="dark"] .settings-subtitle,
+html[data-theme="dark"] .settings-message,
+html[data-theme="dark"] .settings-user-info {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .settings-table th,
+html[data-theme="dark"] .settings-table td {
+  border-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .settings-table th {
+  background: #0d4466;
+}
+
+html[data-theme="dark"] .settings-btn,
+html[data-theme="dark"] .settings-btn.primary,
+html[data-theme="dark"] .settings-btn.approve,
+html[data-theme="dark"] .settings-btn.reject,
+html[data-theme="dark"] .settings-btn.delete {
+  background: #0d4466;
+  color: #f8fafc;
+  border: 1px solid #2d5d7a;
+}
+
+html[data-theme="dark"] .settings-btn:hover,
+html[data-theme="dark"] .settings-btn.primary:hover,
+html[data-theme="dark"] .settings-btn.approve:hover,
+html[data-theme="dark"] .settings-btn.reject:hover,
+html[data-theme="dark"] .settings-btn.delete:hover {
+  background: #0f4e73;
+  opacity: 1;
+}
+
+html[data-theme="dark"] .settings-top-message.error,
+html[data-theme="dark"] .settings-inline-message.error,
+html[data-theme="dark"] .settings-top-message.success,
+html[data-theme="dark"] .settings-inline-message.success {
+  color: #f8fafc;
+}

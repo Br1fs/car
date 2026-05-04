@@ -263,6 +263,7 @@ router.get("/", async (req, res) => {
             volume: 1,
             broker: 1,
             specialist: 1,
+            source: 1,
             files: 1,
             protocolNumber: 1,
           },
@@ -690,6 +691,14 @@ router.delete("/:id", async (req, res) => {
       return res.status(400).json({ message: "Неверный ID" });
     }
 
+    const actorName = String(req.body?.actorName || req.query?.actorName || "system");
+    const sourcePage = String(req.body?.sourcePage || req.query?.sourcePage || "Не указана");
+    const application = await db.collection("applications").findOne({ _id: new ObjectId(id) });
+
+    if (!application) {
+      return res.status(404).json({ message: "Заявка не найдена" });
+    }
+
     const result = await db
       .collection("applications")
       .deleteOne({ _id: new ObjectId(id) });
@@ -697,6 +706,21 @@ router.delete("/:id", async (req, res) => {
     if (result.deletedCount === 0) {
       return res.status(404).json({ message: "Заявка не найдена" });
     }
+
+    await writeAuditLog(db, {
+      action: "delete_application",
+      actorName,
+      targetType: "application",
+      targetId: id,
+      targetLabel: `${application.fio || ""} | ${application.vin || ""}`.trim(),
+      details: {
+        page: sourcePage,
+        protocolNumber: application.protocolNumber || "",
+        specialist: application.specialist || "",
+        fio: application.fio || "",
+        vin: application.vin || "",
+      },
+    });
 
     res.json({ message: "Заявка удалена" });
   } catch (err) {

@@ -2,13 +2,13 @@
   display: flex;
   gap: 14px;
   padding: 12px 14px 22px;
-  margin-top: 18px;
+  margin: 18px auto 0;
   box-sizing: border-box;
   min-height: calc(100vh - 40px);
   align-items: stretch;
   overflow-x: hidden;
   width: 100%;
-  max-width: 100%;
+  max-width: 1700px;
 }
 
 /* обе колонки */
@@ -25,7 +25,7 @@
 
 /* левая колонка */
 .left {
-  flex: 0 0 32%;
+  flex: 0 0 29%;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -37,7 +37,7 @@
 
 /* правая колонка */
 .right {
-  flex: 0 1 66%;
+  flex: 0 1 69%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -617,4 +617,83 @@ body.dark .table-cell {
     width: 100%;
     text-align: center;
   }
+}
+
+html[data-theme="dark"] .left,
+html[data-theme="dark"] .right {
+  background: #1a1a1a;
+  color: #eaeaea;
+  border: 1px solid #2a2a2a;
+}
+
+html[data-theme="dark"] .right h2,
+html[data-theme="dark"] .right h3,
+html[data-theme="dark"] .right label {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .characteristics-table,
+html[data-theme="dark"] .table-cell {
+  border-color: #3a3a3a;
+}
+
+html[data-theme="dark"] .table-cell.label {
+  background: #202020;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .table-cell.value {
+  background: #1a1a1a;
+}
+
+html[data-theme="dark"] .table-cell.value textarea {
+  background: #1f2937;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+html[data-theme="dark"] .left-section {
+  background: #082f49;
+  border: 1px solid #1e4f70;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+html[data-theme="dark"] .attached-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+html[data-theme="dark"] .attached-item {
+  background: #334155;
+  border: 1px solid #475569;
+  color: #f8fafc;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+html[data-theme="dark"] .attached-item a {
+  color: #f8fafc;
+  text-decoration: none;
+}
+
+html[data-theme="dark"] .attached-item a:hover {
+  text-decoration: underline;
+}
+
+html[data-theme="dark"] .left input[type="file"] {
+  background: #334155;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+html[data-theme="dark"] .left input[type="file"]::file-selector-button {
+  background: #475569;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .left input[type="file"]::file-selector-button:hover {
+  background: #64748b;
 }

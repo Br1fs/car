@@ -183,3 +183,59 @@
   text-align: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
+
+html[data-theme="dark"] .decisions-page {
+  background: #082f49;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .decisions-page h2 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .decisions-search {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .decisions-table,
+html[data-theme="dark"] .decisions-empty {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  color: #f8fafc;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .decisions-table-header {
+  background: #0d4466;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .decisions-table-header > div,
+html[data-theme="dark"] .decisions-table-row > div {
+  border-right-color: #2d5d7a;
+  border-bottom-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .decisions-table-row:hover {
+  background: #0f4e73;
+}
+
+html[data-theme="dark"] .decisions-bulk-delete-btn {
+  background: #0d4466;
+  border: 1px solid #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .decisions-bulk-delete-btn:hover,
+html[data-theme="dark"] .decisions-bulk-delete-btn.active,
+html[data-theme="dark"] .decisions-bulk-delete-btn.active:hover,
+html[data-theme="dark"] .download-btn,
+html[data-theme="dark"] .delete-btn,
+html[data-theme="dark"] .actions button {
+  background: #0f4e73;
+  border: 1px solid #2d5d7a;
+  color: #f8fafc;
+}

@@ -1,8 +1,61 @@
 import express from "express";
 import mongoose from "mongoose";
+import { ObjectId } from "mongodb";
 import TableJournal from "../models/TableJournal.js";
+import { getDB } from "../db.js";
 
 const router = express.Router();
+
+function buildApplicationPayloadFromJournal(row = {}) {
+  const now = new Date();
+  return {
+    fio: row.fio ?? "",
+    vin: row.vinCode ?? "",
+    typ: row.type ?? "",
+    brand: row.brand ?? "",
+    model: row.model ?? "",
+    color: row.color ?? "",
+    broker: row.broker ?? "",
+    specialist: row.specialist ?? "",
+    status1: row.applicationStatus || "На одобрении",
+    protocolNumber: row.number ?? "",
+    applicationNumber: row.applicationNumber ?? "",
+    sbktsNumber: row.sbktsNumber ?? "",
+    comment: row.comment ?? "",
+    source: "journal_manual",
+    updatedAt: now,
+  };
+}
+
+async function upsertApplicationFromJournal(journalRow = {}) {
+  const db = getDB();
+  const payload = buildApplicationPayloadFromJournal(journalRow);
+  const maybeApplicationId = String(journalRow.applicationId || "").trim();
+
+  if (ObjectId.isValid(maybeApplicationId)) {
+    const appId = new ObjectId(maybeApplicationId);
+    const existing = await db.collection("applications").findOne({ _id: appId }, { projection: { _id: 1 } });
+    if (existing) {
+      await db.collection("applications").updateOne({ _id: appId }, { $set: payload });
+      return maybeApplicationId;
+    }
+  }
+
+  const insertResult = await db.collection("applications").insertOne({
+    ...payload,
+    createdAt: new Date(),
+    files: {},
+    activityLogs: [
+      {
+        action: "create_from_journal",
+        by: "system",
+        at: new Date().toISOString(),
+      },
+    ],
+  });
+
+  return insertResult.insertedId.toString();
+}
 
 function buildJournalPayload(row = {}) {
   return {
@@ -50,7 +103,12 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const created = await TableJournal.create(buildJournalPayload(req.body));
+    const rowPayload = buildJournalPayload(req.body);
+    const applicationId = await upsertApplicationFromJournal(rowPayload);
+    const created = await TableJournal.create({
+      ...rowPayload,
+      applicationId,
+    });
 
     res.status(201).json(created);
   } catch (error) {
@@ -64,15 +122,24 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
-    const updated = await TableJournal.findByIdAndUpdate(
-      req.params.id,
-      buildJournalPayload(req.body),
-      { new: true, runValidators: true }
-    );
-
-    if (!updated) {
+    const existingRow = await TableJournal.findById(req.params.id);
+    if (!existingRow) {
       return res.status(404).json({ message: "Запись не найдена" });
     }
+
+    const rowPayload = buildJournalPayload({
+      ...req.body,
+      applicationId: req.body?.applicationId || existingRow.applicationId || "",
+    });
+    const applicationId = await upsertApplicationFromJournal(rowPayload);
+    const updated = await TableJournal.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...rowPayload,
+        applicationId,
+      },
+      { new: true, runValidators: true }
+    );
 
     res.json(updated);
   } catch (error) {

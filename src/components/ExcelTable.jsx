@@ -34,7 +34,15 @@ function normalizeDate(value) {
   return value;
 }
 
+function isDarkThemeEnabled() {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.getAttribute("data-theme") === "dark";
+}
+
 function getStatusBadge(status) {
+  if (isDarkThemeEnabled()) {
+    return { bg: "#0d4466", color: "#f8fafc", border: "#2d5d7a", label: status };
+  }
   const v = (status || "").toLowerCase();
   if (v.includes("выпущ") || v.includes("выпуск готов") || v.includes("готов")) {
     return { bg: "#dcfce7", color: "#166534", border: "#bbf7d0", label: status };
@@ -61,6 +69,7 @@ function getStatusBadge(status) {
 }
 
 function getRowBg(status) {
+  if (isDarkThemeEnabled()) return "#0b3a58";
   const v = (status || "").toLowerCase();
   if (v.includes("выпущ") || v.includes("выпуск готов") || v.includes("готов")) return "#f0fdf4";
   if (v.includes("одобр")) return "#ffffff";
@@ -145,7 +154,11 @@ function addDailyNumeration(rows) {
 }
 
 function getTodayString() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function detectReportStatus(statusRaw) {
@@ -173,7 +186,7 @@ function loadSavedOptions(key, fallback) {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = {
+const baseStyles = {
   page: {
     minHeight: "100vh",
     background: "#f8fafc",
@@ -352,12 +365,12 @@ cellSelect: {
 
 const TableRow = React.memo(function TableRow({
   row, brokerOptions, specialistOptions,
-  savingId, onChange, onBlurSave, onSelectChangeAndSave, onClear,
+  savingId, onChange, onBlurSave, onSelectChangeAndSave, onClear, styles, isDarkTheme,
 }) {
   const rowBg = getRowBg(row.applicationStatus);
   return (
     <tr style={{ background: rowBg }}>
-      <td style={{ ...styles.td, color: "#94a3b8", width: 36, textAlign: "center" }}>{row.dailyNumeration}</td>
+      <td style={{ ...styles.td, color: isDarkTheme ? "#f8fafc" : "#94a3b8", width: 36, textAlign: "center" }}>{row.dailyNumeration}</td>
       <td style={styles.td}>
         <input value={row.number || ""} onChange={e => onChange(row._id, "number", e.target.value)}
           onBlur={() => onBlurSave(row._id)} style={styles.cellInput}
@@ -436,6 +449,10 @@ const TableRow = React.memo(function TableRow({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ExcelTable() {
+  const [isDarkTheme, setIsDarkTheme] = useState(() => {
+    if (typeof document === "undefined") return false;
+    return document.documentElement.getAttribute("data-theme") === "dark";
+  });
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [rows, setRows] = useState([]);
   const [journalRows, setJournalRows] = useState([]);
@@ -465,6 +482,51 @@ export default function ExcelTable() {
   const saved = localStorage.getItem("table_col_widths");
   return saved ? JSON.parse(saved) : {};
 });
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setIsDarkTheme(root.getAttribute("data-theme") === "dark");
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const styles = useMemo(() => {
+    if (!isDarkTheme) return baseStyles;
+    return {
+      ...baseStyles,
+      page: { ...baseStyles.page, background: "#082f49", color: "#f8fafc" },
+      card: {
+        ...baseStyles.card,
+        background: "#0b3a58",
+        border: "1px solid #1e4f70",
+        boxShadow: "0 8px 22px rgba(0,0,0,0.25)",
+      },
+      header: { ...baseStyles.header, borderBottom: "1px solid #2d5d7a" },
+      title: { ...baseStyles.title, color: "#f8fafc" },
+      subtitle: { ...baseStyles.subtitle, color: "#cbd5e1" },
+      toolbar: { ...baseStyles.toolbar, borderBottom: "1px solid #2d5d7a" },
+      searchWrap: { ...baseStyles.searchWrap, background: "#0d4466", border: "1px solid #2d5d7a" },
+      searchInput: { ...baseStyles.searchInput, color: "#f8fafc" },
+      filterBtn: { ...baseStyles.filterBtn, background: "#0d4466", border: "1px solid #2d5d7a", color: "#f8fafc" },
+      saveAllBtn: { ...baseStyles.saveAllBtn, background: "#2d5d7a" },
+      filterPanel: { ...baseStyles.filterPanel, background: "#0d4466", borderBottom: "1px solid #2d5d7a" },
+      select: { ...baseStyles.select, background: "#0b3a58", border: "1px solid #2d5d7a", color: "#f8fafc" },
+      addRowPanel: { ...baseStyles.addRowPanel, background: "#0d4466", borderBottom: "1px solid #2d5d7a" },
+      addInput: { ...baseStyles.addInput, background: "#0b3a58", border: "1px solid #2d5d7a", color: "#f8fafc" },
+      addSelect: { ...baseStyles.addSelect, background: "#0b3a58", border: "1px solid #2d5d7a", color: "#f8fafc" },
+      th: { ...baseStyles.th, background: "#0d4466", color: "#f8fafc", borderBottom: "2px solid #2d5d7a" },
+      td: { ...baseStyles.td, color: "#f8fafc", borderBottom: "1px solid #2d5d7a" },
+      cellInput: { ...baseStyles.cellInput, background: "#0b3a58", border: "1px solid #2d5d7a", color: "#f8fafc" },
+      cellSelect: { ...baseStyles.cellSelect, background: "#0b3a58", border: "1px solid #2d5d7a", color: "#f8fafc" },
+      pagination: { ...baseStyles.pagination, borderTop: "1px solid #2d5d7a" },
+      pageInfo: { ...baseStyles.pageInfo, color: "#e2e8f0" },
+      pageBtn: { ...baseStyles.pageBtn, background: "#0d4466", border: "1px solid #2d5d7a", color: "#f8fafc" },
+      pageSizeSelect: { ...baseStyles.pageSizeSelect, background: "#0b3a58", border: "1px solid #2d5d7a", color: "#f8fafc" },
+    };
+  }, [isDarkTheme]);
 
   useEffect(() => { fetchAll(); }, []);
   useEffect(() => {
@@ -837,7 +899,7 @@ useEffect(() => {
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-      <div style={{ textAlign: "center", color: "#94a3b8" }}>
+      <div style={{ textAlign: "center", color: isDarkTheme ? "#e2e8f0" : "#94a3b8" }}>
         <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
         <div style={{ fontSize: 14 }}>Загрузка...</div>
       </div>
@@ -860,27 +922,27 @@ useEffect(() => {
             gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
             gap: 10,
             padding: "12px 24px",
-            borderBottom: "1px solid #e2e8f0",
-            background: "#eff6ff",
+            borderBottom: isDarkTheme ? "1px solid #2d5d7a" : "1px solid #e2e8f0",
+            background: isDarkTheme ? "#0d4466" : "#eff6ff",
           }}
         >
           <div style={{ ...styles.card, padding: "10px 12px", borderRadius: 10, borderColor: "#bfdbfe" }}>
-            <div style={{ color: "#64748b", fontSize: 12 }}>Всего заявок</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "#0f172a" }}>{reportStats.total}</div>
+            <div style={{ color: isDarkTheme ? "#e2e8f0" : "#64748b", fontSize: 12 }}>Всего заявок</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: isDarkTheme ? "#f8fafc" : "#0f172a" }}>{reportStats.total}</div>
           </div>
           {reportStatusItems.map((item) => (
             <div key={item.key} style={{ ...styles.card, padding: "10px 12px", borderRadius: 10, borderColor: "#bfdbfe" }}>
-              <div style={{ color: "#64748b", fontSize: 12 }}>{item.label}</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "#0f172a" }}>{reportStats[item.key]}</div>
+              <div style={{ color: isDarkTheme ? "#e2e8f0" : "#64748b", fontSize: 12 }}>{item.label}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: isDarkTheme ? "#f8fafc" : "#0f172a" }}>{reportStats[item.key]}</div>
             </div>
           ))}
         </div>
 
         {/* Toolbar */}
-        <div style={{ ...styles.toolbar, position: "sticky", top: 0, zIndex: 9, background: "#ffffff" }}>
+        <div style={{ ...styles.toolbar, position: "sticky", top: 0, zIndex: 9, background: isDarkTheme ? "#0b3a58" : "#ffffff" }}>
           {/* Search */}
           <div style={styles.searchWrap}>
-            <svg width="16" height="16" fill="none" stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24">
+            <svg width="16" height="16" fill="none" stroke={isDarkTheme ? "#e2e8f0" : "#94a3b8"} strokeWidth="2" viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
             </svg>
             <input
@@ -944,7 +1006,7 @@ useEffect(() => {
         {/* Add Row Panel */}
         {showAddPanel && (
           <div style={styles.addRowPanel}>
-            <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: "#475569" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: isDarkTheme ? "#f8fafc" : "#475569" }}>
               Добавить заявку вручную
             </p>
             <div style={styles.addRowGrid}>
@@ -991,7 +1053,7 @@ useEffect(() => {
             <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
               <button onClick={addManualRow} style={styles.confirmAddBtn}>Добавить запись</button>
               <button onClick={() => { setNewRow(emptyRow); setShowAddPanel(false); }}
-                style={{ ...styles.confirmAddBtn, background: "#94a3b8" }}>Отмена</button>
+                style={{ ...styles.confirmAddBtn, background: isDarkTheme ? "#475569" : "#94a3b8" }}>Отмена</button>
             </div>
           </div>
         )}
@@ -1049,6 +1111,8 @@ useEffect(() => {
                     onBlurSave={handleBlurSave}
                     onSelectChangeAndSave={handleSelectChangeAndSave}
                     onClear={clearJournalFields}
+                    styles={styles}
+                    isDarkTheme={isDarkTheme}
                   />
                 ))
               )}

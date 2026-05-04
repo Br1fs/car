@@ -92,8 +92,105 @@ const normalizeProtocol = (value) => {
   if (!digits) return "";
   return digits.padStart(4, "0");
 };
+const normalizeVinValue = (value) =>
+  String(value || "")
+    .toUpperCase()
+    .replace(/[ОО]/g, "0")
+    .replace(/[І]/g, "1")
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 17);
+const isVinValid = (value) => /^[A-HJ-NPR-Z0-9]{17}$/.test(normalizeVinValue(value));
+const getVinCheckDigit = (vin) => {
+  const valueMap = {
+    A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8,
+    J: 1, K: 2, L: 3, M: 4, N: 5, P: 7, R: 9,
+    S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9,
+  };
+  const weights = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+  const chars = String(vin || "").toUpperCase().split("");
+  if (chars.length !== 17) return "";
+
+  let sum = 0;
+  for (let i = 0; i < 17; i += 1) {
+    const ch = chars[i];
+    const num = /\d/.test(ch) ? Number(ch) : valueMap[ch];
+    if (num === undefined) return "";
+    sum += num * weights[i];
+  }
+  const remainder = sum % 11;
+  return remainder === 10 ? "X" : String(remainder);
+};
+const isVinChecksumValid = (vin) => {
+  const normalized = normalizeVinValue(vin);
+  if (!isVinValid(normalized)) return false;
+  const expected = getVinCheckDigit(normalized);
+  if (!expected) return false;
+  return normalized[8] === expected;
+};
+const withMutedTesseractParamWarnings = async (work) => {
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    const first = String(args?.[0] || "");
+    if (first.includes("Parameter not found:")) return;
+    originalWarn(...args);
+  };
+  try {
+    return await work();
+  } finally {
+    console.warn = originalWarn;
+  }
+};
+const FIO_NOISE_REGEX =
+  /(республик|удостовер|жеке|кулiк|куәлік|личности|министр|министер|внутренних|дел|орган|выдан|берген|дата|рожд|туған|күні|identity|card|ioctob|iostob|akeke|kyoj|kylik)/i;
+const isPlausibleFioValue = (value) => {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  if (FIO_NOISE_REGEX.test(text)) return false;
+  if (/\d/.test(text)) return false;
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2 || tokens.length > 3) return false;
+  return tokens.every((token) => /^[A-Za-zА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүІіҺһ-]{2,}$/.test(token));
+};
+const scoreVinCandidate = (vin) => {
+  const normalized = normalizeVinValue(vin);
+  if (normalized.length !== 17) return -999;
+  if (!isVinValid(normalized)) return -999;
+  const checksumOk = isVinChecksumValid(normalized);
+  const wmiPrefixes = [
+    "4T1", "JTD", "JT2", "JT3", "JT4", "5TD", "2T1",
+    "LS4", "LSG", "LSV", "LFV", "LGB", "LFP", "LZW",
+  ];
+  let score = 0;
+  if (checksumOk) score += 20;
+  if (/^\d/.test(normalized)) score += 2;
+  if (/[A-Z]/.test(normalized) && /\d/.test(normalized)) score += 2;
+  if (wmiPrefixes.some((prefix) => normalized.startsWith(prefix))) score += 8;
+  const digitCount = (normalized.match(/\d/g) || []).length;
+  if (digitCount >= 6 && digitCount <= 11) score += 4;
+  else score -= 4;
+  if (/(.)\1\1/.test(normalized)) score -= 6;
+  return score;
+};
+const pickBestVinValue = (values = []) => {
+  const unique = [...new Set(values.map((v) => normalizeVinValue(v)).filter(Boolean))];
+  if (!unique.length) return "";
+  const ranked = unique
+    .map((value) => ({ value, score: scoreVinCandidate(value), checksum: isVinChecksumValid(value) }))
+    .sort((a, b) => b.score - a.score);
+  const checksumPool = ranked.filter((item) => item.checksum);
+  return (checksumPool[0] || ranked[0] || {}).value || "";
+};
 
 const fuelOptions = ["Бензин", "Дизель", "Электро"];
+
+const normalizeFuelLabel = (value) => {
+  const fuel = String(value || "").trim().toLowerCase().replace("ё", "е");
+  if (!fuel) return "";
+  if (fuel.includes("диз")) return "Дизель";
+  if (fuel.includes("бенз") || fuel.includes("газ") || fuel.includes("lpg") || fuel.includes("gpl")) return "Бензин";
+  if (fuel.includes("элект")) return "Электро";
+  return "";
+};
 
 const AUTO_FILL_EXCLUDED_KEYS = new Set([
   "_id",
@@ -256,6 +353,13 @@ useEffect(() => {
   });
 
   const [cars, setCars] = useState([]);
+  const [carSelection, setCarSelection] = useState({
+    type: "",
+    brand: "",
+    model: "",
+    year: "",
+    volume: "",
+  });
   const [files, setFiles] = useState({});
   const [filesUploaded, setFilesUploaded] = useState([]);
   const [existingFiles, setExistingFiles] = useState([]);
@@ -291,9 +395,12 @@ const { id } = useParams();
   const ocrCameraRef = useRef(null);
   const ocrDocsRef = useRef(null);
   const [ocrTarget, setOcrTarget] = useState("");
+  const ocrTargetRef = useRef("");
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrDebug, setOcrDebug] = useState("");
+  const [ocrFieldDebug, setOcrFieldDebug] = useState({});
   const ocrDocumentRef = useRef(null);
+  const vinCandidatesDebugRef = useRef("");
 
   const effectiveFuelType = isN3Category(form.templateCategory)
     ? "Дизель"
@@ -327,6 +434,13 @@ const { id } = useParams();
     ...prev,
     ...selectedCar,
   }));
+  setCarSelection({
+    type: selectedCar.type || "",
+    brand: selectedCar.brand || "",
+    model: selectedCar.model || "",
+    year: selectedCar.year ? String(selectedCar.year) : "",
+    volume: selectedCar.volume ? String(selectedCar.volume) : "",
+  });
 }, [cars, location.state]);
 
   useEffect(() => {
@@ -356,6 +470,13 @@ const { id } = useParams();
           templateCategory: getTemplateCategory(data.category),
           createdAt: formatDate(data.createdAt),
           protocolDate: formatDate(data.protocolDate),
+        });
+        setCarSelection({
+          type: data.type || "",
+          brand: data.brand || "",
+          model: data.model || "",
+          year: data.year ? String(data.year) : "",
+          volume: data.volume ? String(data.volume) : "",
         });
         setProtocolNumber(normalizeProtocol(data.protocolNumber));
 
@@ -400,12 +521,12 @@ const { id } = useParams();
       sortAlpha([
         ...new Set(
           carsByFuel
-            .filter((c) => !form.type || c.type === form.type)
+            .filter((c) => !carSelection.type || c.type === carSelection.type)
             .map((c) => c.brand)
             .filter(Boolean)
         ),
       ]),
-    [carsByFuel, form.type]
+    [carsByFuel, carSelection.type]
   );
   const brandOptionGroups = useMemo(() => groupByFirstLetter(brandOptions), [brandOptions]);
 
@@ -414,12 +535,16 @@ const { id } = useParams();
       sortAlpha([
         ...new Set(
           carsByFuel
-            .filter((c) => (!form.type || c.type === form.type) && (!form.brand || c.brand === form.brand))
+            .filter(
+              (c) =>
+                (!carSelection.type || c.type === carSelection.type) &&
+                (!carSelection.brand || c.brand === carSelection.brand)
+            )
             .map((c) => c.model)
             .filter(Boolean)
         ),
       ]),
-    [carsByFuel, form.type, form.brand]
+    [carsByFuel, carSelection.type, carSelection.brand]
   );
 
   const yearOptions = useMemo(
@@ -429,15 +554,15 @@ const { id } = useParams();
           carsByFuel
             .filter(
               (c) =>
-                (!form.type || c.type === form.type) &&
-                (!form.brand || c.brand === form.brand) &&
-                (!form.model || c.model === form.model)
+                (!carSelection.type || c.type === carSelection.type) &&
+                (!carSelection.brand || c.brand === carSelection.brand) &&
+                (!carSelection.model || c.model === carSelection.model)
             )
             .map((c) => c.year)
             .filter((y) => y !== undefined && y !== null && y !== "")
         ),
       ]),
-    [carsByFuel, form.type, form.brand, form.model]
+    [carsByFuel, carSelection.type, carSelection.brand, carSelection.model]
   );
 
   const volumeOptions = useMemo(
@@ -447,29 +572,29 @@ const { id } = useParams();
           carsByFuel
             .filter(
               (c) =>
-                (!form.type || c.type === form.type) &&
-                (!form.brand || c.brand === form.brand) &&
-                (!form.model || c.model === form.model) &&
-                (!form.year || Number(c.year) === Number(form.year))
+                (!carSelection.type || c.type === carSelection.type) &&
+                (!carSelection.brand || c.brand === carSelection.brand) &&
+                (!carSelection.model || c.model === carSelection.model) &&
+                (!carSelection.year || Number(c.year) === Number(carSelection.year))
             )
             .map((c) => c.volume)
             .filter((v) => v !== undefined && v !== null && v !== "")
         ),
       ]),
-    [carsByFuel, form.type, form.brand, form.model, form.year]
+    [carsByFuel, carSelection.type, carSelection.brand, carSelection.model, carSelection.year]
   );
 
   useEffect(() => {
     if (!cars.length) return;
-    if (!form.type || !form.brand || !form.model) return;
+    if (!carSelection.type || !carSelection.brand || !carSelection.model) return;
 
     const matched = cars.find((car) => {
-      if (!isEqualLoose(car.type, form.type)) return false;
-      if (!isEqualLoose(car.brand, form.brand)) return false;
-      if (!isEqualLoose(car.model, form.model)) return false;
+      if (!isEqualLoose(car.type, carSelection.type)) return false;
+      if (!isEqualLoose(car.brand, carSelection.brand)) return false;
+      if (!isEqualLoose(car.model, carSelection.model)) return false;
 
-      if (form.year && !isEqualLoose(car.year, form.year)) return false;
-      if (form.volume && !isEqualLoose(car.volume, form.volume)) return false;
+      if (carSelection.year && !isEqualLoose(car.year, carSelection.year)) return false;
+      if (carSelection.volume && !isEqualLoose(car.volume, carSelection.volume)) return false;
       return true;
     });
 
@@ -485,17 +610,158 @@ const { id } = useParams();
       const next = {
         ...prev,
         ...autoFill,
-        type: prev.type,
-        brand: prev.brand,
-        model: prev.model,
-        year: prev.year || String(matched.year ?? ""),
-        volume: prev.volume || String(matched.volume ?? ""),
+        type: carSelection.type,
+        brand: carSelection.brand,
+        model: carSelection.model,
+        year: carSelection.year || String(matched.year ?? ""),
+        volume: carSelection.volume || String(matched.volume ?? ""),
       };
 
       const changed = Object.keys(next).some((key) => String(next[key] ?? "") !== String(prev[key] ?? ""));
       return changed ? next : prev;
     });
-  }, [cars, form.type, form.brand, form.model, form.year, form.volume]);
+  }, [cars, carSelection.type, carSelection.brand, carSelection.model, carSelection.year, carSelection.volume]);
+
+  const handleCarSelectionChange = (e) => {
+    const { name, value } = e.target;
+
+    setCarSelection((prev) => {
+      const next = {
+        ...prev,
+        [name]: value,
+      };
+
+      if (name === "type") {
+        next.brand = "";
+        next.model = "";
+        next.year = "";
+        next.volume = "";
+      }
+      if (name === "brand") {
+        next.model = "";
+        next.year = "";
+        next.volume = "";
+      }
+      if (name === "model") {
+        next.year = "";
+        next.volume = "";
+      }
+      if (name === "year") {
+        next.volume = "";
+      }
+
+      return next;
+    });
+
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        [name]: value,
+      };
+      if (name === "type") {
+        next.brand = "";
+        next.model = "";
+        next.year = "";
+        next.volume = "";
+      }
+      if (name === "brand") {
+        next.model = "";
+        next.year = "";
+        next.volume = "";
+      }
+      if (name === "model") {
+        next.year = "";
+        next.volume = "";
+      }
+      if (name === "year") {
+        next.volume = "";
+      }
+      return next;
+    });
+  };
+
+  const handleFuelTypeSelectionChange = (e) => {
+    const value = e.target.value;
+
+    setCarSelection({
+      type: "",
+      brand: "",
+      model: "",
+      year: "",
+      volume: "",
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      fuelType: value,
+      type: "",
+      brand: "",
+      model: "",
+      year: "",
+      volume: "",
+    }));
+  };
+
+  const handleProtocolFieldChange = (e) => {
+    const { name, value } = e.target;
+
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        [name]: value,
+      };
+
+      if (name === "templateCategory") {
+        if (isN3Category(value)) {
+          next.fuelType = "Дизель";
+          next.n3Type = "";
+        } else if (isOCategory(value)) {
+          next.fuelType = "";
+          next.n3Type = "";
+          next.EcologicalClass = "";
+        } else if (needsFuelSelect(value)) {
+          next.fuelType = "";
+          next.n3Type = "";
+        } else {
+          next.fuelType = "";
+          next.n3Type = "";
+        }
+      }
+
+      if (name === "fuelType" && isN3Category(prev.templateCategory)) {
+        next.fuelType = "Дизель";
+      }
+
+      return next;
+    });
+  };
+
+  const openProtocolModal = () => {
+    setForm((prev) => {
+      let nextTemplateCategory = prev.templateCategory || getTemplateCategory(prev.category);
+      let nextFuelType = prev.fuelType || normalizeFuelLabel(prev.fuel);
+
+      if (isN3Category(nextTemplateCategory)) {
+        nextFuelType = "Дизель";
+      }
+      if (isOCategory(nextTemplateCategory)) {
+        nextFuelType = "";
+      }
+
+      const changed =
+        String(nextTemplateCategory || "") !== String(prev.templateCategory || "") ||
+        String(nextFuelType || "") !== String(prev.fuelType || "");
+
+      if (!changed) return prev;
+
+      return {
+        ...prev,
+        templateCategory: nextTemplateCategory || "",
+        fuelType: nextFuelType || "",
+      };
+    });
+    setShowProtocolModal(true);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -526,13 +792,6 @@ const { id } = useParams();
       if (name === "fuelType" && isN3Category(prev.templateCategory)) {
         next.fuelType = "Дизель";
       }
-      if (name === "fuelType") {
-        next.type = "";
-        next.brand = "";
-        next.model = "";
-        next.year = "";
-        next.volume = "";
-      }
       if (name === "type") {
         next.brand = "";
         next.model = "";
@@ -554,6 +813,7 @@ const { id } = useParams();
 
       return next;
     });
+
   };
 
   const handleFileChange = (e, key) => {
@@ -665,32 +925,96 @@ const { id } = useParams();
     };
 
     const extractVinStrict = () => {
+      vinCandidatesDebugRef.current = "";
       const normalizeVinText = (value) =>
         String(value || "")
           .toUpperCase()
+          // Безопасные OCR-замены: только очевидные "похожие" символы.
           .replace(/[О]/g, "0")
-          .replace(/[О]/g, "0")
-          .replace(/[IІ|]/g, "1")
-          .replace(/[L]/g, "1")
-          .replace(/[S]/g, "5")
-          .replace(/[B]/g, "8")
-          .replace(/[Z]/g, "2")
+          .replace(/[І]/g, "1")
+          .replace(/[|]/g, "1")
           .replace(/[^A-Z0-9]/g, " ");
 
-      // 1) Попытка по метке VIN
+      const noiseVinHints = [
+        "PSI",
+        "KPA",
+        "COLD",
+        "TIRE",
+        "TYRE",
+        "FRONT",
+        "REAR",
+        "SEAT",
+        "SEATS",
+        "RIMS",
+        "CAPACITY",
+        "LOADING",
+      ];
+
+      const isNoisyVinCandidate = (value) => {
+        const text = String(value || "").toUpperCase();
+        if (!text) return true;
+        return noiseVinHints.some((hint) => text.includes(hint));
+      };
+
+      const vinRe = /[A-HJ-NPR-Z0-9]{17}/g;
+      const candidates = [];
+      const wmiPrefixes = [
+        "4T1", "JTD", "JT2", "JT3", "JT4", "5TD", "2T1",
+        "LS4", "LSG", "LSV", "LFV", "LGB", "LFP", "LZW",
+      ];
+      const pushCandidate = (value, score) => {
+        const normalized = normalizeVinValue(value);
+        if (normalized.length !== 17) return;
+        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(normalized)) return;
+        if (isNoisyVinCandidate(normalized)) return;
+        const hasLetters = /[A-Z]/.test(normalized);
+        const hasDigits = /\d/.test(normalized);
+        const startsWithDigit = /^\d/.test(normalized);
+        const wmiLooksReal = /^[A-HJ-NPR-Z0-9]{3}/.test(normalized);
+        const checksumOk = isVinChecksumValid(normalized);
+        const bonus =
+          (hasLetters && hasDigits ? 2 : 0) +
+          (startsWithDigit ? 2 : 0) +
+          (wmiLooksReal ? 1 : 0) +
+          (checksumOk ? 12 : -8);
+        candidates.push({ value: normalized, score: score + bonus, checksumOk });
+
+        // OCR часто теряет первый символ VIN и добавляет мусор в конце.
+        // Пробуем восстановить WMI: S4... -> LS4..., T1... -> 4T1... и т.п.
+        for (const wmi of wmiPrefixes) {
+          const tail = wmi.slice(1);
+          if (!normalized.startsWith(tail)) continue;
+          const repaired = normalizeVinValue(`${wmi[0]}${normalized.slice(0, 16)}`);
+          if (repaired.length !== 17 || !/^[A-HJ-NPR-Z0-9]{17}$/.test(repaired)) continue;
+          const repairedChecksum = isVinChecksumValid(repaired);
+          const repairedBonus = (repairedChecksum ? 10 : -3) + 6;
+          candidates.push({
+            value: repaired,
+            score: score + bonus + repairedBonus,
+            checksumOk: repairedChecksum,
+          });
+        }
+      };
+
+      // 1) Приоритет: строки, где явно есть VIN
       const vinByLabel = findByLabel(/vin/i);
-      const labelNormalized = normalizeVinText(vinByLabel).replace(/\s+/g, "");
-      if (labelNormalized.length >= 17) {
-        const m = labelNormalized.match(/[A-HJ-NPR-Z0-9]{17}/);
-        if (m?.[0]) return m[0];
+      const labelNormalized = normalizeVinText(vinByLabel);
+      const labelMatches = labelNormalized.match(vinRe) || [];
+      labelMatches.forEach((match) => pushCandidate(match, 100));
+
+      for (let i = 0; i < lines.length; i += 1) {
+        if (!/\bvin\b/i.test(lines[i])) continue;
+        const area = [lines[i], lines[i + 1], lines[i + 2]].filter(Boolean).join(" ");
+        const lineMatches = normalizeVinText(area).match(vinRe) || [];
+        lineMatches.forEach((match) => pushCandidate(match, 90));
       }
 
-      // 2) По всему тексту: обычный поиск 17-символьного VIN
+      // 2) По всему тексту: собираем все кандидаты
       const allNormalized = normalizeVinText(raw);
-      const direct = allNormalized.match(/\b[A-HJ-NPR-Z0-9]{17}\b/);
-      if (direct?.[0]) return direct[0];
+      const directMatches = allNormalized.match(vinRe) || [];
+      directMatches.forEach((match) => pushCandidate(match, 40));
 
-      // 3) Если OCR разбил VIN на куски — склеиваем "похожие" токены
+      // 3) Если OCR разбил VIN на куски — склеиваем токены
       const tokens = allNormalized
         .split(/\s+/)
         .map((t) => t.trim())
@@ -702,16 +1026,39 @@ const { id } = useParams();
         for (let j = i; j < tokens.length && merged.length < 24; j += 1) {
           merged += tokens[j];
           if (merged.length >= 17) {
-            const m = merged.match(/[A-HJ-NPR-Z0-9]{17}/);
-            if (m?.[0]) return m[0];
+            const mergedMatches = merged.match(vinRe) || [];
+            mergedMatches.forEach((match) => pushCandidate(match, 30));
           }
         }
       }
 
-      // 4) Очень шумный случай — берем первую 17-символьную подстроку
+      if (candidates.length) {
+        const ranked = [...candidates]
+          .map((item) => ({
+            ...item,
+            quality: scoreVinCandidate(item.value),
+            finalScore: item.score + scoreVinCandidate(item.value),
+          }))
+          .sort((a, b) => b.finalScore - a.finalScore);
+        vinCandidatesDebugRef.current = ranked
+          .slice(0, 5)
+          .map(
+            (item, idx) =>
+              `${idx + 1}) ${item.value} | score=${item.finalScore} (raw=${item.score}, q=${item.quality}) | checksum=${item.checksumOk ? "ok" : "bad"}`
+          )
+          .join(" ; ");
+        const validChecksumCandidates = ranked.filter((item) => item.checksumOk);
+        const pool = validChecksumCandidates.length ? validChecksumCandidates : ranked;
+        return pool[0].value;
+      }
+
+      // 4) Очень шумный случай — fallback без фильтров по шуму
       const compact = allNormalized.replace(/\s+/g, "");
-      const fallback = compact.match(/[A-HJ-NPR-Z0-9]{17}/);
-      return fallback?.[0] || "";
+      const fallback = compact.match(/[A-HJ-NPR-Z0-9]{17}/g) || [];
+      if (fallback.length) {
+        vinCandidatesDebugRef.current = `fallback: ${fallback.slice(0, 3).join(", ")}`;
+      }
+      return normalizeVinValue(fallback[0] || "");
     };
     const pickSegmentByLabels = (labelRegex, stopRegex) => {
       const m = raw.match(
@@ -891,7 +1238,7 @@ const { id } = useParams();
     const tokens = cleaned
       .split(/\s+/)
       .filter(Boolean)
-      .filter((part) => /^[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүІіҺһ-]{2,}$/.test(part))
+      .filter((part) => /^[A-Za-zА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүІіҺһ-]{2,}$/.test(part))
       .slice(0, 3);
 
     return tokens.join(" ").trim();
@@ -988,6 +1335,54 @@ const { id } = useParams();
     if (!patronymic) return base;
     return [...parts, patronymic].slice(0, 3).join(" ").trim();
   };
+  const enrichFioWithPatronymicLoose = (fioValue, rawText) => {
+    const base = String(fioValue || "").trim();
+    const parts = base.split(/\s+/).filter(Boolean);
+    if (parts.length >= 3) return base;
+
+    const lines = String(rawText || "")
+      .split(/\r?\n/)
+      .map((line) => String(line || "").replace(/[^A-Za-zА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүІіҺһ\s-]/g, " "))
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    const patronymicLike = (token) =>
+      /(OVICH|EVICH|ICH|OVNA|EVNA|VNA|KYZY|KIZY|ULY|ULI|ОВИЧ|ЕВИЧ|ИЧ|ОВНА|ЕВНА|ҚЫЗЫ|КЫЗЫ|ҰЛЫ|УЛЫ)$/i.test(
+        String(token || "")
+      );
+    const normalizeLeetToken = (token) =>
+      String(token || "")
+        .toUpperCase()
+        .replace(/4/g, "Ч")
+        .replace(/3/g, "З")
+        .replace(/0/g, "О")
+        .replace(/6/g, "Б")
+        .replace(/8/g, "В")
+        .replace(/X/g, "Х")
+        .replace(/A/g, "А")
+        .replace(/B/g, "В")
+        .replace(/E/g, "Е")
+        .replace(/K/g, "К")
+        .replace(/M/g, "М")
+        .replace(/H/g, "Н")
+        .replace(/O/g, "О")
+        .replace(/P/g, "Р")
+        .replace(/C/g, "С")
+        .replace(/T/g, "Т")
+        .replace(/Y/g, "У");
+
+    const fromTokens = lines
+      .flatMap((line) => line.split(/\s+/).filter(Boolean))
+      .find((token) => {
+        const normalizedToken = normalizeLeetToken(token);
+        if (!patronymicLike(token) && !patronymicLike(normalizedToken)) return false;
+        return !parts.some((p) => p.toUpperCase() === token.toUpperCase());
+      });
+
+    if (!fromTokens) return base;
+    const normalizedPatronymic = normalizeLeetToken(fromTokens);
+    return [...parts, normalizedPatronymic || fromTokens].slice(0, 3).join(" ").trim();
+  };
 
   const extractFioByIdAnchorFallback = (rawText) => {
     const lines = String(rawText || "")
@@ -1076,6 +1471,117 @@ const { id } = useParams();
     if (nameLines.length < 2) return "";
     return nameLines.slice(0, 3).join(" ").trim();
   };
+  const extractFioLooseFallback = (rawText) => {
+    const lines = String(rawText || "")
+      .split(/\r?\n/)
+      .map((line) =>
+        String(line || "")
+          .replace(/[.,;:_/\\()[\]{}]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+      )
+      .filter(Boolean);
+    if (!lines.length) return "";
+
+    const stopWords = [
+      "республика", "удостоверение", "личности", "дата", "рождения", "орган", "выдан",
+      "номер", "vin", "иин", "жсн", "министр", "министерство", "внутренних", "дел",
+      "область", "облысы", "национальность", "место", "туған", "күні", "паспорт",
+      "identity", "card", "issued", "birth", "date", "kyhi", "kyni", "tyfah", "tugan",
+    ];
+    const noisyLineRegex =
+      /(республик|казахстан|қазақстан|respubl|republic|kazakh|qazaq|kaakctah|pect|peci|pech|yeji|hkacei|yejiutka|туған\s*күні|дата\s*рожд|tyfah\s*kyhi|tugan\s*kuni)/i;
+
+    const normalizeToken = (token) =>
+      String(token || "")
+        .replace(/[^A-Za-zА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүІіҺһ-]/g, "")
+        .trim();
+
+    const isNameToken = (token) => {
+      if (!token || token.length < 2) return false;
+      if (/\d/.test(token)) return false;
+      return /^[A-Za-zА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүІіҺһ-]+$/.test(token);
+    };
+
+    const candidates = lines
+      .map((line) => {
+        const lower = line.toLowerCase();
+        if (stopWords.some((w) => lower.includes(w))) return null;
+        if (noisyLineRegex.test(line)) return null;
+        const tokens = line
+          .split(/\s+/)
+          .map(normalizeToken)
+          .filter(isNameToken);
+        if (tokens.length < 2 || tokens.length > 4) return null;
+        const nonLabelTokens = tokens.filter(
+          (t) => !/^(туған|күні|дата|рождени[ея]|kyhi|kyni|tyfah|tugan|iata|data)$/i.test(t)
+        );
+        if (nonLabelTokens.length < 2) return null;
+        const joined = tokens.join(" ");
+        if (noisyLineRegex.test(joined)) return null;
+        const upperCount = tokens.filter((t) => t === t.toUpperCase()).length;
+        const cyrCount = tokens.filter((t) => /[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүІіҺһ]/.test(t)).length;
+        const longTokenPenalty = tokens.some((t) => t.length > 14) ? -4 : 0;
+        const score = tokens.length * 3 + upperCount * 2 + cyrCount * 2 + longTokenPenalty;
+        return { value: tokens.slice(0, 3).join(" "), score };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+
+    return candidates[0]?.value || "";
+  };
+  const extractFioFromMrz = (rawText) => {
+    const lines = String(rawText || "")
+      .split(/\r?\n/)
+      .map((line) => String(line || "").trim())
+      .filter(Boolean);
+    const mrzLine = lines.find((line) => /[A-Z]{2,}<<[A-Z]{2,}/.test(line.toUpperCase()));
+    if (!mrzLine) return "";
+    const cleaned = mrzLine
+      .toUpperCase()
+      .replace(/[^A-Z<]/g, "")
+      .replace(/<+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const tokens = cleaned.split(" ").filter((t) => t.length >= 2);
+    if (tokens.length < 2) return "";
+    const candidate = tokens.slice(0, 3).join(" ");
+    return candidate;
+  };
+  const chooseFioByMode = ({ mode, rawText, roiText = "", layerText = "" }) => {
+    if (mode === "pdf") {
+      const best =
+        pickBestFioCandidate(
+          extractKazakhIdFioTriplet(layerText),
+          extractKazakhIdFioTriplet(rawText),
+          parseRecognizedTextByField("fio", layerText),
+          parseRecognizedTextByField("fio", rawText),
+          parseRecognizedTextByField("fio", roiText)
+        ) ||
+        extractFioByIdAnchorFallback(`${layerText}\n${rawText}`) ||
+        extractFioLooseFallback(`${roiText}\n${layerText}\n${rawText}`);
+      return hardCleanFinalFio(best);
+    }
+
+    if (mode === "photo_bad") {
+      const mrz = extractFioFromMrz(`${roiText}\n${rawText}`);
+      const strict = parseRecognizedTextByField("fio", `${roiText}\n${rawText}`);
+      const loose = extractFioLooseFallback(`${roiText}\n${rawText}`);
+      const best = pickBestFioCandidate(mrz, strict, loose);
+      return enrichFioWithPatronymicLoose(
+        cleanLowQualityPhotoFio(hardCleanFinalFio(best)),
+        `${roiText}\n${rawText}`
+      );
+    }
+
+    const strict = parseRecognizedTextByField("fio", `${roiText}\n${rawText}`);
+    const triplet = extractKazakhIdFioTriplet(`${roiText}\n${rawText}`);
+    const best = pickBestFioCandidate(strict, triplet, extractFioByIdAnchorFallback(`${roiText}\n${rawText}`));
+    return enrichFioWithPatronymic(
+      cleanLowQualityPhotoFio(hardCleanFinalFio(best)),
+      `${roiText}\n${rawText}`
+    );
+  };
 
   const attachAsUdostoverenie = (file) => {
     if (!file) return;
@@ -1103,12 +1609,36 @@ const { id } = useParams();
   const createOcrWorkerSafe = async () => {
     const { createWorker } = await import("tesseract.js");
     try {
-      const worker = await createWorker("kaz+rus+eng");
-      await worker.setParameters({ preserve_interword_spaces: "1" });
+      const worker = await withMutedTesseractParamWarnings(() => createWorker("kaz+rus+eng"));
+      await withMutedTesseractParamWarnings(() =>
+        worker.setParameters({ preserve_interword_spaces: "1" })
+      );
       return worker;
     } catch {
-      const worker = await createWorker("rus+eng");
-      await worker.setParameters({ preserve_interword_spaces: "1" });
+      const worker = await withMutedTesseractParamWarnings(() => createWorker("rus+eng"));
+      await withMutedTesseractParamWarnings(() =>
+        worker.setParameters({ preserve_interword_spaces: "1" })
+      );
+      return worker;
+    }
+  };
+  const createVinWorkerSafe = async () => {
+    const { createWorker } = await import("tesseract.js");
+    try {
+      const worker = await withMutedTesseractParamWarnings(() => createWorker("eng"));
+      await withMutedTesseractParamWarnings(() =>
+        worker.setParameters({
+          preserve_interword_spaces: "1",
+          tessedit_pageseg_mode: "6",
+          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+        })
+      );
+      return worker;
+    } catch {
+      const worker = await withMutedTesseractParamWarnings(() => createWorker("eng"));
+      await withMutedTesseractParamWarnings(() =>
+        worker.setParameters({ preserve_interword_spaces: "1" })
+      );
       return worker;
     }
   };
@@ -1131,7 +1661,35 @@ const { id } = useParams();
     const doc = await getDocumentFn({ data }).promise;
     const page = await doc.getPage(1);
     const content = await page.getTextContent();
-    const text = content.items.map((i) => i.str).join(" ");
+    const rawItems = (content.items || [])
+      .map((item) => {
+        const y = Number(item?.transform?.[5] ?? 0);
+        const x = Number(item?.transform?.[4] ?? 0);
+        const str = String(item?.str || "").trim();
+        if (!str) return null;
+        return { x, y, str };
+      })
+      .filter(Boolean);
+
+    rawItems.sort((a, b) => {
+      if (Math.abs(a.y - b.y) > 1.5) return b.y - a.y; // сверху вниз
+      return a.x - b.x; // слева направо
+    });
+
+    const lines = [];
+    for (const item of rawItems) {
+      const prev = lines[lines.length - 1];
+      if (!prev || Math.abs(prev.y - item.y) > 1.5) {
+        lines.push({ y: item.y, parts: [item.str] });
+      } else {
+        prev.parts.push(item.str);
+      }
+    }
+
+    const text = lines
+      .map((line) => line.parts.join(" ").replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .join("\n");
     return text;
   };
 
@@ -1205,6 +1763,62 @@ const { id } = useParams();
     canvas.height = bitmap.height;
     ctx.drawImage(bitmap, 0, 0);
     return canvas;
+  };
+
+  const rotateCanvas = (sourceCanvas, angleDeg) => {
+    if (!sourceCanvas) return null;
+    const normalized = ((angleDeg % 360) + 360) % 360;
+    if (normalized === 0) return sourceCanvas;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const sw = sourceCanvas.width;
+    const sh = sourceCanvas.height;
+    if (normalized === 90 || normalized === 270) {
+      canvas.width = sh;
+      canvas.height = sw;
+    } else {
+      canvas.width = sw;
+      canvas.height = sh;
+    }
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((normalized * Math.PI) / 180);
+    ctx.drawImage(sourceCanvas, -sw / 2, -sh / 2);
+    return canvas;
+  };
+  const cropCanvasRect = (sourceCanvas, x, y, w, h) => {
+    if (!sourceCanvas) return null;
+    const sw = sourceCanvas.width;
+    const sh = sourceCanvas.height;
+    if (!sw || !sh) return null;
+    const sx = Math.max(0, Math.min(sw - 1, Math.floor(x)));
+    const sy = Math.max(0, Math.min(sh - 1, Math.floor(y)));
+    const cw = Math.max(1, Math.min(sw - sx, Math.floor(w)));
+    const ch = Math.max(1, Math.min(sh - sy, Math.floor(h)));
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    canvas.width = cw;
+    canvas.height = ch;
+    ctx.drawImage(sourceCanvas, sx, sy, cw, ch, 0, 0, cw, ch);
+    return canvas;
+  };
+  const buildVinFocusedCanvases = (fullCanvas) => {
+    if (!fullCanvas) return [];
+    const sw = fullCanvas.width;
+    const sh = fullCanvas.height;
+    // Несколько зон VIN-плашки: центр, правый блок, верхний центральный блок.
+    const centerWide = cropCanvasRect(fullCanvas, sw * 0.12, sh * 0.20, sw * 0.78, sh * 0.46);
+    const rightTall = cropCanvasRect(fullCanvas, sw * 0.48, sh * 0.08, sw * 0.48, sh * 0.84);
+    const topBand = cropCanvasRect(fullCanvas, sw * 0.10, sh * 0.08, sw * 0.82, sh * 0.34);
+    return [fullCanvas, centerWide, rightTall, topBand].filter(Boolean);
+  };
+  const buildMrzFocusedCanvas = (fullCanvas) => {
+    if (!fullCanvas) return null;
+    const sw = fullCanvas.width;
+    const sh = fullCanvas.height;
+    // MRZ обычно в нижней части удостоверения
+    return cropCanvasRect(fullCanvas, sw * 0.08, sh * 0.68, sw * 0.84, sh * 0.25);
   };
 
   const scanDocumentAndAutofill = async (file) => {
@@ -1335,6 +1949,10 @@ const { id } = useParams();
     if (!field || !file) return;
     try {
       setOcrLoading(true);
+      setOcrFieldDebug((prev) => ({
+        ...prev,
+        [field]: `start: ${file.name} (${file.type || "unknown"})`,
+      }));
       let sourceText = "";
       const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
       const isImage = file.type.startsWith("image/");
@@ -1360,24 +1978,23 @@ const { id } = useParams();
         }
         sourceText = `${fioText}\n${text}\n${pdfTextLayer}`;
         setOcrDebug(`field:${field} pdf fio-roi=${fioText.length} full=${text.length} textlayer=${pdfTextLayer.length}`);
+        setOcrFieldDebug((prev) => ({
+          ...prev,
+          [field]: `pdf: fio-roi=${fioText.length}, full=${text.length}, textLayer=${pdfTextLayer.length}`,
+        }));
 
         if (field === "fio") {
-          const fioTripletFromLayer = extractKazakhIdFioTriplet(pdfTextLayer);
-          const fioTripletFromFull = extractKazakhIdFioTriplet(text);
-          const fioFromLayer = parseRecognizedTextByField("fio", pdfTextLayer);
-          const fioFromFull = parseRecognizedTextByField("fio", text);
-          const fioFromRoi = parseRecognizedTextByField("fio", fioText);
-          const bestFio =
-            pickBestFioCandidate(
-              fioTripletFromLayer,
-              fioTripletFromFull,
-              fioFromLayer,
-              fioFromFull,
-              fioFromRoi
-            ) ||
-            extractFioByIdAnchorFallback(`${pdfTextLayer}\n${text}`);
-          const finalFio = hardCleanFinalFio(bestFio);
-          if (finalFio) {
+          const finalFio = chooseFioByMode({
+            mode: "pdf",
+            rawText: text,
+            roiText: fioText,
+            layerText: pdfTextLayer,
+          });
+          if (finalFio && isPlausibleFioValue(finalFio)) {
+            setOcrFieldDebug((prev) => ({
+              ...prev,
+              fio: `${prev.fio || ""} -> mode:pdf parsed: ${String(finalFio).slice(0, 48)}`,
+            }));
             setForm((prev) => ({ ...prev, fio: finalFio }));
             await worker.terminate();
             return;
@@ -1385,48 +2002,112 @@ const { id } = useParams();
         }
         await worker.terminate();
       } else if (isImage) {
-        const worker = await createOcrWorkerSafe();
+        const worker = field === "vin" ? await createVinWorkerSafe() : await createOcrWorkerSafe();
+        const roiCanvas = await fileToRoiCanvas(file);
+        const fullCanvas = await fileToCanvas(file);
         const {
           data: { text },
         } = await worker.recognize(file);
-        const roiCanvas = await fileToRoiCanvas(file);
-        const fullCanvas = await fileToCanvas(file);
-        const fioCanvasFromImage = field === "fio" ? cropFioAreaFromCanvas(fullCanvas || null) : null;
-        let roiText = "";
-        if (roiCanvas) {
-          const roiResult = await worker.recognize(roiCanvas);
-          roiText = roiResult?.data?.text || "";
-        }
-        let fioRoiText = "";
-        if (fioCanvasFromImage) {
-          const fioResult = await worker.recognize(fioCanvasFromImage);
-          fioRoiText = fioResult?.data?.text || "";
-        }
-        await worker.terminate();
-        sourceText = `${fioRoiText}\n${roiText}\n${text}`;
-        setOcrDebug(`field:${field} image fio-roi=${fioRoiText.length} roi=${roiText.length} full=${text.length}`);
 
-        if (field === "fio") {
-          const fioTripletFromFull = extractKazakhIdFioTriplet(text);
-          const fioTripletFromRoi = extractKazakhIdFioTriplet(`${fioRoiText}\n${roiText}`);
-          const fioFromFull = parseRecognizedTextByField("fio", text);
-          const fioFromRoi = parseRecognizedTextByField("fio", `${fioRoiText}\n${roiText}`);
-          const bestFio =
-            pickBestFioCandidate(
-              fioTripletFromFull,
-              fioTripletFromRoi,
-              fioFromFull,
-              fioFromRoi
-            ) || extractFioByIdAnchorFallback(`${fioRoiText}\n${roiText}\n${text}`);
-          const finalFio = enrichFioWithPatronymic(
-            cleanLowQualityPhotoFio(hardCleanFinalFio(bestFio)),
-            `${fioRoiText}\n${roiText}\n${text}`
+        let roiText = "";
+        let fioRoiText = "";
+
+        if (field === "vin") {
+          const focusCanvases = buildVinFocusedCanvases(fullCanvas);
+          const vinCanvases = [];
+          focusCanvases.forEach((base) => {
+            vinCanvases.push(base);
+            const rotated90 = rotateCanvas(base, 90);
+            const rotated270 = rotateCanvas(base, 270);
+            if (rotated90) vinCanvases.push(rotated90);
+            if (rotated270) vinCanvases.push(rotated270);
+          });
+          const vinTexts = [];
+          const vinParsedAttempts = [];
+          for (const c of vinCanvases) {
+            const vinRes = await worker.recognize(c);
+            const rawVinText = vinRes?.data?.text || "";
+            vinTexts.push(rawVinText);
+            const parsedAttempt = parseRecognizedTextByField("vin", rawVinText);
+            vinParsedAttempts.push({
+              parsed: parsedAttempt,
+              candidates: vinCandidatesDebugRef.current || "",
+            });
+          }
+          sourceText = `${vinTexts.join("\n")}\n${text}`;
+          const parsedByAttempt = vinParsedAttempts.map((x) => x.parsed);
+          const bestVin = pickBestVinValue([...parsedByAttempt, parseRecognizedTextByField("vin", text)]);
+          const bestAttempt = vinParsedAttempts.find((x) => normalizeVinValue(x.parsed) === normalizeVinValue(bestVin));
+          setOcrDebug(
+            `field:vin image full=${text.length} tries=${vinTexts.length} best=${bestVin || "-"}`
           );
-          if (finalFio) {
+          setOcrFieldDebug((prev) => ({
+            ...prev,
+            vin: `image: full=${text.length}, tries=${vinTexts.length} -> parsed: ${bestVin || "-"} | candidates: ${bestAttempt?.candidates || vinCandidatesDebugRef.current || "none"}`,
+          }));
+          await worker.terminate();
+          if (bestVin) {
+            setForm((prev) => ({ ...prev, vin: bestVin }));
+            return;
+          }
+        } else {
+          const fioCanvasFromImage = field === "fio" ? cropFioAreaFromCanvas(fullCanvas || null) : null;
+          if (roiCanvas) {
+            const roiResult = await worker.recognize(roiCanvas);
+            roiText = roiResult?.data?.text || "";
+          }
+          if (fioCanvasFromImage) {
+            const fioResult = await worker.recognize(fioCanvasFromImage);
+            fioRoiText = fioResult?.data?.text || "";
+          }
+          sourceText = `${fioRoiText}\n${roiText}\n${text}`;
+          setOcrDebug(`field:${field} image fio-roi=${fioRoiText.length} roi=${roiText.length} full=${text.length}`);
+          setOcrFieldDebug((prev) => ({
+            ...prev,
+            [field]: `image: fio-roi=${fioRoiText.length}, roi=${roiText.length}, full=${text.length}`,
+          }));
+        }
+        if (field === "fio") {
+          const fullConfidence = Number(text ? 65 : 0);
+          const roiConfidence = Number(roiText ? 60 : 0);
+          const mode = fullConfidence < 60 || roiConfidence < 55 ? "photo_bad" : "photo_good";
+          const finalFio = chooseFioByMode({
+            mode,
+            rawText: text,
+            roiText: `${fioRoiText}\n${roiText}`,
+          });
+          if (finalFio && isPlausibleFioValue(finalFio)) {
+            setOcrFieldDebug((prev) => ({
+              ...prev,
+              fio: `${prev.fio || ""} -> mode:${mode} parsed: ${String(finalFio).slice(0, 48)}`,
+            }));
             setForm((prev) => ({ ...prev, fio: finalFio }));
             return;
           }
+
+          // Аварийный fallback: отдельный OCR зоны MRZ внизу фото
+          const mrzCanvas = buildMrzFocusedCanvas(fullCanvas || null);
+          let mrzText = "";
+          if (mrzCanvas) {
+            const mrzRes = await worker.recognize(mrzCanvas);
+            mrzText = mrzRes?.data?.text || "";
+          }
+          const mrzCandidate = hardCleanFinalFio(extractFioFromMrz(`${mrzText}\n${text}\n${roiText}`));
+          if (mrzCandidate) {
+            setOcrFieldDebug((prev) => ({
+              ...prev,
+              fio: `${prev.fio || ""} -> mode:mrz_fallback parsed: ${String(mrzCandidate).slice(0, 48)}`,
+            }));
+            setForm((prev) => ({ ...prev, fio: mrzCandidate }));
+            return;
+          }
+
+          setOcrFieldDebug((prev) => ({
+            ...prev,
+            fio: `${prev.fio || ""} -> no parsed (filtered as noise)`,
+          }));
         }
+        await worker.terminate();
       } else {
         alert("Этот тип файла не поддерживается. Выберите PDF или изображение.");
         return;
@@ -1434,6 +2115,20 @@ const { id } = useParams();
 
       const parsed = parseRecognizedTextByField(field, sourceText);
       if (!parsed) {
+        if (field === "fio") {
+          const looseFio = hardCleanFinalFio(extractFioLooseFallback(sourceText));
+          if (looseFio) {
+            setOcrFieldDebug((prev) => ({
+              ...prev,
+              fio: `${prev.fio || ""} -> fallback: ${String(looseFio).slice(0, 48)}`,
+            }));
+            setForm((prev) => ({
+              ...prev,
+              fio: looseFio,
+            }));
+            return;
+          }
+        }
         const fallback = parseDocumentData(sourceText)?.[field] || "";
         if (fallback) {
           setForm((prev) => ({
@@ -1449,13 +2144,28 @@ const { id } = useParams();
         return;
       }
       const nextValue =
-        field === "fio" ? cleanLowQualityPhotoFio(hardCleanFinalFio(parsed)) : parsed;
+        field === "fio"
+          ? cleanLowQualityPhotoFio(hardCleanFinalFio(parsed))
+          : field === "vin"
+            ? normalizeVinValue(parsed)
+            : parsed;
+      setOcrFieldDebug((prev) => ({
+        ...prev,
+        [field]:
+          field === "vin"
+            ? `${prev[field] || ""} -> parsed: ${String(nextValue || "").slice(0, 48)} | candidates: ${vinCandidatesDebugRef.current || "none"}`
+            : `${prev[field] || ""} -> parsed: ${String(nextValue || "").slice(0, 48)}`,
+      }));
       setForm((prev) => ({
         ...prev,
         [field]: nextValue,
       }));
     } catch (err) {
       console.error("OCR ERROR:", err);
+      setOcrFieldDebug((prev) => ({
+        ...prev,
+        [ocrTargetRef.current || ocrTarget || "unknown"]: `error: ${String(err?.message || err).slice(0, 140)}`,
+      }));
       alert("Ошибка OCR. Проверьте фото и попробуйте снова.");
     } finally {
       setOcrLoading(false);
@@ -1467,6 +2177,7 @@ const { id } = useParams();
   };
 
   const openOcrPicker = (field, source = "gallery") => {
+    ocrTargetRef.current = field;
     setOcrTarget(field);
     if (source === "documents") {
       ocrDocsRef.current?.click();
@@ -2018,6 +2729,9 @@ doc.setFont("Roboto", "normal");
   );
 
   const isIinValid = /^\d{12}$/.test(form.iin || "");
+  const vinNormalized = normalizeVinValue(form.vin || "");
+  const vinHasValue = vinNormalized.length > 0;
+  const vinLooksValid = isVinValid(vinNormalized);
 
   return (
     <div className="app-form">
@@ -2056,6 +2770,11 @@ doc.setFont("Roboto", "normal");
           <button type="button" className="scan-icon-btn" title="Из фотопленки/камеры" onClick={() => openOcrPicker("fio", "gallery")}>🖼</button>
           <button type="button" className="scan-icon-btn" title="Из документов (PDF/файл)" onClick={() => openOcrPicker("fio", "documents")}>📄</button>
         </div>
+        {!ocrLoading && ocrFieldDebug.fio ? (
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: -2, marginBottom: 6 }}>
+            OCR fio: {ocrFieldDebug.fio}
+          </div>
+        ) : null}
         <input
   name="iin"
   placeholder="ИИН"
@@ -2073,6 +2792,11 @@ doc.setFont("Roboto", "normal");
   <button type="button" className="scan-icon-btn" title="ИИН из фотопленки/камеры" onClick={() => openOcrPicker("iin", "gallery")}>🖼</button>
   <button type="button" className="scan-icon-btn" title="ИИН из документов (PDF/файл)" onClick={() => openOcrPicker("iin", "documents")}>📄</button>
 </div>
+{!ocrLoading && ocrFieldDebug.iin ? (
+  <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px", marginBottom: "6px" }}>
+    OCR iin: {ocrFieldDebug.iin}
+  </div>
+) : null}
 {form.iin && !isIinValid && (
   <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
     ИИН должен содержать ровно 12 цифр
@@ -2085,10 +2809,34 @@ doc.setFont("Roboto", "normal");
         </div>
         <input name="email" placeholder="Email" value={form.email} onChange={handleChange} />
         <div className="scan-field-row">
-          <input name="vin" placeholder="VIN" value={form.vin} onChange={handleChange} />
+          <input
+            name="vin"
+            placeholder="VIN"
+            value={form.vin}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                vin: normalizeVinValue(e.target.value),
+              }))
+            }
+            style={{
+              border: vinHasValue && !vinLooksValid ? "2px solid red" : "",
+              backgroundColor: vinHasValue && !vinLooksValid ? "#fff5f5" : "",
+            }}
+          />
           <button type="button" className="scan-icon-btn" title="VIN из фотопленки/камеры" onClick={() => openOcrPicker("vin", "gallery")}>🖼</button>
           <button type="button" className="scan-icon-btn" title="VIN из документов (PDF/файл)" onClick={() => openOcrPicker("vin", "documents")}>📄</button>
         </div>
+        {!ocrLoading && ocrFieldDebug.vin ? (
+          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "-2px", marginBottom: "6px" }}>
+            OCR vin: {ocrFieldDebug.vin}
+          </div>
+        ) : null}
+        {vinHasValue && !vinLooksValid && (
+          <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+            VIN должен содержать ровно 17 символов и не включать I, O, Q
+          </div>
+        )}
 
         <select name="status1" value={form.status1 || ""} onChange={handleChange}>
           <option value="">Статус</option>
@@ -2110,7 +2858,7 @@ doc.setFont("Roboto", "normal");
           Найдено машин: {carsByFuel.length}
         </div>
 
-        <select name="fuelType" value={form.fuelType || ""} onChange={handleChange}>
+        <select name="fuelType" value={form.fuelType || ""} onChange={handleFuelTypeSelectionChange}>
           <option value="">Выберите топливо</option>
           {fuelOptions.map((fuel) => (
             <option key={fuel} value={fuel}>
@@ -2119,14 +2867,14 @@ doc.setFont("Roboto", "normal");
           ))}
         </select>
 
-        <select name="type" value={form.type} onChange={handleChange}>
+        <select name="type" value={carSelection.type} onChange={handleCarSelectionChange}>
           <option value="">Выберите тип автомобиля</option>
           {typeOptions.map((t, i) => (
             <option key={i} value={t}>{t}</option>
           ))}
         </select>
 
-        <select name="brand" value={form.brand} onChange={handleChange}>
+        <select name="brand" value={carSelection.brand} onChange={handleCarSelectionChange}>
           <option value="">Выберите марку</option>
           {brandOptionGroups.map((group) => (
             <optgroup key={group.letter} label={group.letter}>
@@ -2141,12 +2889,12 @@ doc.setFont("Roboto", "normal");
 
         <select
           name="model"
-          value={form.model}
-          onChange={handleChange}
-          disabled={!form.brand}
+          value={carSelection.model}
+          onChange={handleCarSelectionChange}
+          disabled={!carSelection.brand}
         >
           <option value="">
-            {!form.brand ? "Сначала выберите марку" : "Выберите модель"}
+            {!carSelection.brand ? "Сначала выберите марку" : "Выберите модель"}
           </option>
           {modelOptions.map((m, i) => (
             <option key={i} value={m}>{m}</option>
@@ -2155,14 +2903,14 @@ doc.setFont("Roboto", "normal");
 
         <select
           name="year"
-          value={form.year}
-          onChange={handleChange}
-          disabled={!form.brand || !form.model}
+          value={carSelection.year}
+          onChange={handleCarSelectionChange}
+          disabled={!carSelection.brand || !carSelection.model}
         >
           <option value="">
-            {!form.brand
+            {!carSelection.brand
               ? "Сначала выберите марку"
-              : !form.model
+              : !carSelection.model
                 ? "Сначала выберите модель"
                 : "Выберите год"}
           </option>
@@ -2173,12 +2921,12 @@ doc.setFont("Roboto", "normal");
 
         <select
           name="volume"
-          value={form.volume}
-          onChange={handleChange}
-          disabled={!form.year}
+          value={carSelection.volume}
+          onChange={handleCarSelectionChange}
+          disabled={!carSelection.year}
         >
           <option value="">
-            {!form.year ? "Сначала выберите год" : "Выберите объём"}
+            {!carSelection.year ? "Сначала выберите год" : "Выберите объём"}
           </option>
           {volumeOptions.map((v, i) => (
             <option key={i} value={v}>{v}</option>
@@ -2198,9 +2946,9 @@ doc.setFont("Roboto", "normal");
               />
 
               {existingDocsByKey[item.key]?.length > 0 && (
-                <div style={{ marginTop: "6px", paddingLeft: "4px" }}>
+                <div className="attached-list">
                   {existingDocsByKey[item.key].map((file) => (
-                    <div key={`${file.key}-${file.index}`}>
+                    <div key={`${file.key}-${file.index}`} className="attached-item">
                       {file.savedName ? (
                         <a
                           href={`${API_URL}/uploads/${file.savedName}`}
@@ -2218,9 +2966,9 @@ doc.setFont("Roboto", "normal");
               )}
 
               {uploadedDocsByKey[item.key]?.length > 0 && (
-                <div style={{ marginTop: "6px", paddingLeft: "4px" }}>
+                <div className="attached-list">
                   {uploadedDocsByKey[item.key].map((file, index) => (
-                    <div key={`${file.key}-new-${index}`}>
+                    <div key={`${file.key}-new-${index}`} className="attached-item">
                       {file.originalName}
                     </div>
                   ))}
@@ -2241,9 +2989,9 @@ doc.setFont("Roboto", "normal");
           />
 
           {existingPhotos.length > 0 && (
-            <div style={{ marginTop: "10px" }}>
+            <div className="attached-list attached-list-photo">
               {existingPhotos.map((file) => (
-                <div key={`photo-old-${file.index}`}>
+                <div key={`photo-old-${file.index}`} className="attached-item">
                   {file.savedName ? (
                     <a
                       href={`${API_URL}/uploads/${file.savedName}`}
@@ -2261,9 +3009,9 @@ doc.setFont("Roboto", "normal");
           )}
 
           {uploadedPhotos.length > 0 && (
-            <div style={{ marginTop: "10px" }}>
+            <div className="attached-list attached-list-photo">
               {uploadedPhotos.map((file, index) => (
-                <div key={`photo-new-${index}`}>
+                <div key={`photo-new-${index}`} className="attached-item">
                   {file.originalName}
                 </div>
               ))}
@@ -2275,14 +3023,14 @@ doc.setFont("Roboto", "normal");
           type="file"
           accept="image/*"
           style={{ display: "none" }}
-          onChange={(e) => runOcrForFile(ocrTarget, e.target.files?.[0])}
+          onChange={(e) => runOcrForFile(ocrTargetRef.current || ocrTarget, e.target.files?.[0])}
         />
         <input
           ref={ocrDocsRef}
           type="file"
           accept=".pdf,image/*,application/pdf"
           style={{ display: "none" }}
-          onChange={(e) => runOcrForFile(ocrTarget, e.target.files?.[0])}
+          onChange={(e) => runOcrForFile(ocrTargetRef.current || ocrTarget, e.target.files?.[0])}
         />
         <input
           ref={ocrCameraRef}
@@ -2290,7 +3038,7 @@ doc.setFont("Roboto", "normal");
           accept="image/*"
           capture="environment"
           style={{ display: "none" }}
-          onChange={(e) => runOcrForFile(ocrTarget, e.target.files?.[0])}
+          onChange={(e) => runOcrForFile(ocrTargetRef.current || ocrTarget, e.target.files?.[0])}
         />
         <input
           ref={ocrDocumentRef}
@@ -2343,7 +3091,7 @@ doc.setFont("Roboto", "normal");
             Сформировать МАКЕТ
           </button>
 
-          <button className="pdf-btn" onClick={() => setShowProtocolModal(true)}>
+          <button className="pdf-btn" onClick={openProtocolModal}>
             Сформировать ПРОТОКОЛ
           </button>
 
@@ -2357,7 +3105,7 @@ doc.setFont("Roboto", "normal");
                   <select
                     name="templateCategory"
                     value={form.templateCategory}
-                    onChange={handleChange}
+                    onChange={handleProtocolFieldChange}
                   >
                     <option value="">Выберите категорию</option>
                     <option value="M1">M1</option>
@@ -2379,7 +3127,7 @@ doc.setFont("Roboto", "normal");
                     <select
                       name="fuelType"
                       value={form.fuelType}
-                      onChange={handleChange}
+                      onChange={handleProtocolFieldChange}
                     >
                       <option value="">Выберите топливо</option>
                       <option value="Бензин">Бензин</option>
@@ -2396,7 +3144,7 @@ doc.setFont("Roboto", "normal");
                       <select
                         name="fuelType"
                         value="Дизель"
-                        onChange={handleChange}
+                        onChange={handleProtocolFieldChange}
                         disabled
                       >
                         <option value="Дизель">Дизель</option>
@@ -2408,7 +3156,7 @@ doc.setFont("Roboto", "normal");
                       <select
                         name="n3Type"
                         value={form.n3Type}
-                        onChange={handleChange}
+                        onChange={handleProtocolFieldChange}
                       >
                         <option value="">Выберите тип</option>
                         <option value="sedelnyi">Седельный</option>
@@ -2425,7 +3173,7 @@ doc.setFont("Roboto", "normal");
                       type="text"
                       name="EcologicalClass"
                       value={form.EcologicalClass}
-                      onChange={handleChange}
+                      onChange={handleProtocolFieldChange}
                     />
                   </div>
                 )}

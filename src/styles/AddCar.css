@@ -172,3 +172,66 @@
 .delete-bottom-button:hover {
   background: #b91c1c;
 }
+
+html[data-theme="dark"] .add-car-page {
+  background: #082f49;
+  color: #f8fafc;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .add-car-page h2 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .add-car-topbar {
+  background: #082f49;
+}
+
+html[data-theme="dark"] .cars-form-row {
+  background: #0b3a58;
+  border-color: #2d5d7a;
+}
+
+html[data-theme="dark"] .cars-form-row:hover {
+  border-color: #3e6d89;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .cars-form-row label {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-form-row input {
+  background: #0d4466;
+  border-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-form-row input::placeholder {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .cars-form-row input:focus {
+  border-color: #4b7d99;
+  box-shadow: 0 0 0 4px rgba(75, 125, 153, 0.25);
+  background: #0f4e73;
+}
+
+html[data-theme="dark"] .add-car-back-btn,
+html[data-theme="dark"] .save-button,
+html[data-theme="dark"] .delete-bottom-button {
+  background: #0d4466;
+  border: 1px solid #2d5d7a;
+  color: #f8fafc;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .add-car-back-btn:hover,
+html[data-theme="dark"] .save-button:hover,
+html[data-theme="dark"] .delete-bottom-button:hover {
+  background: #0f4e73;
+}
+
+html[data-theme="dark"] .add-car-bottom-bar {
+  background: linear-gradient(to top, #082f49 70%, rgba(8, 47, 73, 0));
+}

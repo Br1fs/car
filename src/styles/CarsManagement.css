@@ -257,3 +257,93 @@
 .car-detail-page h2 {
   margin: 0 0 14px;
 }
+
+html[data-theme="dark"] .cars-page {
+  background: #082f49;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-page-top h2 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-page-header {
+  background: #082f49;
+}
+
+html[data-theme="dark"] .cars-page-header input {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-table {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .cars-table-header {
+  background: #0d4466;
+  color: #f8fafc;
+  border-bottom-color: #2d5d7a;
+}
+
+html[data-theme="dark"] .cars-table-header > div,
+html[data-theme="dark"] .cars-table-row > div {
+  border-right-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-table-row {
+  border-bottom-color: #2d5d7a;
+}
+
+html[data-theme="dark"] .cars-table-row:hover {
+  background: #0f4e73;
+}
+
+html[data-theme="dark"] .cars-brand-separator {
+  background: #0d4466;
+  border-top-color: #2d5d7a;
+  border-bottom-color: #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .cars-stat-card,
+html[data-theme="dark"] .car-detail-page {
+  background: #0b3a58;
+  border-color: #1e4f70;
+  color: #f8fafc;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .cars-stat-card .label,
+html[data-theme="dark"] .cars-empty {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .cars-stat-card .value {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .add-car-btn,
+html[data-theme="dark"] .bulk-delete-btn,
+html[data-theme="dark"] .open-btn,
+html[data-theme="dark"] .delete-btn {
+  background: #0d4466;
+  border: 1px solid #2d5d7a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .add-car-btn:hover,
+html[data-theme="dark"] .bulk-delete-btn:hover,
+html[data-theme="dark"] .open-btn:hover,
+html[data-theme="dark"] .delete-btn:hover {
+  background: #0f4e73;
+}
+
+html[data-theme="dark"] .bulk-delete-btn:disabled {
+  background: #0b3a58;
+  color: #94a3b8;
+}
