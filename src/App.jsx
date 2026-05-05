@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import IdleSessionWatcher from "./components/IdleSessionWatcher";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const Applications = lazy(() => import("./pages/Applications"));
@@ -20,6 +21,7 @@ const WorkNotes = lazy(() => import("./pages/WorkNotes"));
 const Declaration = lazy(() => import("./pages/Declaration"));
 const EPTS = lazy(() => import("./pages/EPTS"));
 const ActivityLogs = lazy(() => import("./pages/ActivityLogs"));
+const MailBoard = lazy(() => import("./pages/MailBoard"));
 const Register = lazy(() => import("./pages/Register"));
 const Login = lazy(() => import("./pages/Login"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -36,6 +38,7 @@ function RouteFallback() {
 export default function App() {
   return (
     <BrowserRouter>
+      <IdleSessionWatcher />
       <Navbar />
       <main className="app-content">
         <Suspense fallback={<RouteFallback />}>
@@ -166,6 +169,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <WorkNotes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mail-board"
+              element={
+                <ProtectedRoute>
+                  <MailBoard />
                 </ProtectedRoute>
               }
             />

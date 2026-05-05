@@ -54,9 +54,8 @@
 .table-header {
   display: grid;
   grid-template-columns:
-  70px
-    80px /* № */ 
-    110px/* № */
+    80px /* № */
+    110px /* № протокола */
     145px /* дата */ 
     170px /* статус */ 
     280px /* ФИО */ 
@@ -103,7 +102,6 @@
 .applications-table-row {
   display: grid;
   grid-template-columns:
-  70px
     80px
     110px
     145px

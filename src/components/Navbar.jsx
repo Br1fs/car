@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import "./Navbar.css";
 import { API_URL } from "../config";
+import { clearActivityTimestamp } from "../utils/idleSession";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export default function Navbar() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const handleLogout = () => {
+    clearActivityTimestamp();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");
@@ -45,6 +47,7 @@ export default function Navbar() {
         { to: "/dogovor", label: "Договор", icon: "🖋" },
         { to: "/declaration", label: "Кнопка", icon: "📎" },
         { to: "/work-notes", label: "Рабочая запись", icon: "🗒" },
+        { to: "/mail-board", label: "Почта (канбан)", icon: "📮" },
       ],
     },
     {

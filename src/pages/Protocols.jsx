@@ -9,7 +9,6 @@ export default function Protocols() {
   const [protocols, setProtocols] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [selectedIds, setSelectedIds] = useState([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -71,25 +70,6 @@ export default function Protocols() {
     currentPage * pageSize
   );
 
-  const visibleIds = filteredProtocols.map((p) => p._id);
-
-  const isAllSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
-
-  const toggleOne = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const toggleAllVisible = () => {
-    if (isAllSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
-    } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
-    }
-  };
-
   const handleDelete = async (id) => {
     try {
       if (!window.confirm("Удалить протокол?")) return;
@@ -102,38 +82,9 @@ export default function Protocols() {
         return updated;
       });
 
-      setSelectedIds((prev) => prev.filter((x) => x !== id));
     } catch (err) {
       console.error(err);
       alert("Ошибка при удалении протокола");
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    try {
-      if (!selectedIds.length) {
-        alert("Сначала выберите протоколы");
-        return;
-      }
-
-      if (!window.confirm(`Удалить выбранные протоколы: ${selectedIds.length} шт.?`)) {
-        return;
-      }
-
-      await axios.post(`${API_URL}/api/protocols/bulk-delete`, {
-        ids: selectedIds,
-      });
-
-      setProtocols((prev) => {
-        const updated = prev.filter((p) => !selectedIds.includes(p._id));
-        sessionStorage.setItem("protocols_cache", JSON.stringify(updated));
-        return updated;
-      });
-
-      setSelectedIds([]);
-    } catch (err) {
-      console.error(err);
-      alert("Ошибка при массовом удалении");
     }
   };
 
@@ -180,14 +131,6 @@ export default function Protocols() {
 
         <div className="protocols-header-actions">
           <button
-            onClick={handleBulkDelete}
-            className="protocols-bulk-delete-btn"
-            disabled={!selectedIds.length}
-          >
-            Удалить выбранные ({selectedIds.length})
-          </button>
-
-          <button
             onClick={() => navigate("/protocol-templates")}
             className="protocols-settings-btn"
           >
@@ -214,13 +157,6 @@ export default function Protocols() {
 
       <div className="protocols-table">
         <div className="protocols-table-header">
-          <div className="checkbox-col">
-            <input
-              type="checkbox"
-              checked={isAllSelected}
-              onChange={toggleAllVisible}
-            />
-          </div>
           <div>№</div>
           <div>Дата</div>
           <div>Номер</div>
@@ -236,13 +172,6 @@ export default function Protocols() {
 
         {pagedProtocols.map((p, index) => (
           <div key={p._id} className="protocols-table-row">
-            <div className="checkbox-col">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(p._id)}
-                onChange={() => toggleOne(p._id)}
-              />
-            </div>
             <div>{(currentPage - 1) * pageSize + index + 1}</div>
             <div>{formatDateRu(p.createdAt)}</div>
             <div>{p.protocolNumber || "-"}</div>

@@ -4,17 +4,33 @@ import axios from "axios";
 import "../styles/ApplicationView.css";
 import { API_URL } from "../config";
 
+function buildWhatsappTemplate(row) {
+  if (!row) return "";
+  return [
+    `Здравствуйте${row.fio ? `, ${row.fio}` : ""}!`,
+    "",
+    `Заявка: протокол ${row.protocolNumber || "—"}, VIN ${row.vin || "—"}.`,
+    "",
+    "Сообщение от портала заявок.",
+  ].join("\n");
+}
+
 export default function ApplicationView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [app, setApp] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [waMessage, setWaMessage] = useState("");
 
   useEffect(() => {
+    setWaMessage("");
     axios
       .get(`${API_URL}/api/applications/${id}`)
-      .then((res) => setApp(res.data))
+      .then((res) => {
+        setApp(res.data);
+        setWaMessage(buildWhatsappTemplate(res.data));
+      })
       .catch(() => alert("Заявка не найдена"));
   }, [id]);
 
@@ -277,14 +293,58 @@ export default function ApplicationView() {
           <b>Whatsapp заявителя:</b>{" "}
           <input
             type="text"
+            placeholder="+7…"
             value={app.phone || ""}
             onChange={(e) => handleChange("phone", e.target.value)}
-          />{" "}
+          />
+        </p>
+        <p className="appview-wa-message-wrap">
+          <b>Текст сообщения:</b>
+          <textarea
+            className="appview-wa-textarea"
+            rows={5}
+            value={waMessage}
+            onChange={(e) => setWaMessage(e.target.value)}
+          />
+        </p>
+        <p>
           <button
+            type="button"
             className="appview-btn appview-btn-success"
-            onClick={() => alert(`Сообщение Whatsapp отправлено на номер: ${app.phone}`)}
+            onClick={async () => {
+              const phone = (app.phone || "").trim();
+              if (!phone) {
+                alert("Укажите номер телефона");
+                return;
+              }
+              const message = (waMessage || buildWhatsappTemplate(app)).trim();
+              if (!message) {
+                alert("Введите текст сообщения");
+                return;
+              }
+              try {
+                const { data } = await axios.post(`${API_URL}/api/applications/send-whatsapp`, {
+                  phone,
+                  message,
+                });
+                if (data?.via === "link" && data?.waUrl) {
+                  window.open(data.waUrl, "_blank", "noopener,noreferrer");
+                }
+                alert(data?.message || "Готово");
+              } catch (err) {
+                console.error(err);
+                const waUrl = err.response?.data?.waUrl;
+                if (waUrl) {
+                  window.open(waUrl, "_blank", "noopener,noreferrer");
+                }
+                alert(
+                  err.response?.data?.message ||
+                    "Не удалось отправить через API. Если открылся WhatsApp — отправьте сообщение вручную."
+                );
+              }
+            }}
           >
-            Отправить
+            Отправить в WhatsApp
           </button>
         </p>
 

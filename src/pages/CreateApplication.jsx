@@ -2212,14 +2212,24 @@ const { id } = useParams();
       .join("\n");
 
     try {
-      await axios.post(`${API_URL}/api/send-whatsapp`, {
+      const { data } = await axios.post(`${API_URL}/api/applications/send-whatsapp`, {
         phone: form.phone,
         message,
       });
-      alert("Сообщение отправлено!");
+      if (data?.via === "link" && data?.waUrl) {
+        window.open(data.waUrl, "_blank", "noopener,noreferrer");
+      }
+      alert(data?.message || "Готово");
     } catch (err) {
       console.error(err);
-      alert("Ошибка отправки в WhatsApp");
+      const waUrl = err.response?.data?.waUrl;
+      if (waUrl) {
+        window.open(waUrl, "_blank", "noopener,noreferrer");
+      }
+      alert(
+        err.response?.data?.message ||
+          "Ошибка отправки в WhatsApp. Проверьте номер и настройки API."
+      );
     }
   };
 

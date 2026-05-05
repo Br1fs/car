@@ -45,7 +45,6 @@
   display: grid;
   grid-template-columns:
     80px
-    80px
     150px
     140px
     240px
@@ -71,7 +70,6 @@
 .zayavki-table-row {
   display: grid;
   grid-template-columns:
-    80px
     80px
     150px
     140px

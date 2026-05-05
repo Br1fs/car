@@ -45,7 +45,6 @@
   display: grid;
   grid-template-columns:
     80px
-    80px
     150px
     140px
     220px
@@ -73,7 +72,6 @@
 .decisions-table-row {
   display: grid;
   grid-template-columns:
-    80px
     80px
     150px
     140px

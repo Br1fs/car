@@ -6,6 +6,7 @@ import axios from "axios";
 import { getDB } from "../db.js";
 import { ObjectId } from "mongodb";
 import { writeAuditLog } from "../utils/auditLog.js";
+import { buildWaMeUrl, normalizePhoneForWhatsApp } from "../utils/whatsappPhone.js";
 
 const router = express.Router();
 
@@ -214,16 +215,33 @@ router.post("/send-whatsapp", async (req, res) => {
         .json({ message: "Номер телефона и сообщение обязательны" });
     }
 
+    const toDigits = normalizePhoneForWhatsApp(phone);
+    const waUrl = buildWaMeUrl(phone, String(message));
+
+    if (!toDigits || !waUrl) {
+      return res.status(400).json({ message: "Не удалось разобрать номер телефона" });
+    }
+
     const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
     const PHONE_ID = process.env.WHATSAPP_PHONE_ID;
+
+    if (!WHATSAPP_TOKEN || !PHONE_ID) {
+      return res.json({
+        ok: true,
+        via: "link",
+        waUrl,
+        message:
+          "WhatsApp Cloud API не настроен (WHATSAPP_TOKEN и WHATSAPP_PHONE_ID в .env). Откройте ссылку WhatsApp в браузере или приложении.",
+      });
+    }
 
     const response = await axios.post(
       `https://graph.facebook.com/v17.0/${PHONE_ID}/messages`,
       {
         messaging_product: "whatsapp",
-        to: phone,
+        to: toDigits,
         type: "text",
-        text: { body: message },
+        text: { body: String(message).slice(0, 4096) },
       },
       {
         headers: {
@@ -233,10 +251,21 @@ router.post("/send-whatsapp", async (req, res) => {
       }
     );
 
-    res.json({ message: "Сообщение отправлено", data: response.data });
+    res.json({
+      ok: true,
+      via: "cloud_api",
+      message: "Сообщение отправлено через WhatsApp Business API",
+      data: response.data,
+      waUrl,
+    });
   } catch (err) {
     console.error("WhatsApp send error:", err.response?.data || err);
-    res.status(500).json({ message: "Ошибка при отправке сообщения" });
+    const fallbackUrl = buildWaMeUrl(req.body?.phone, String(req.body?.message || ""));
+    res.status(500).json({
+      message: "Ошибка при отправке через API. Можно отправить вручную по ссылке.",
+      waUrl: fallbackUrl || undefined,
+      details: err.response?.data || err.message,
+    });
   }
 });
 

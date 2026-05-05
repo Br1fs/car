@@ -22,7 +22,6 @@ const statusOptions = [
 ];
 
 export default function Applications() {
-  const [selectedIds, setSelectedIds] = useState([]);
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -32,59 +31,6 @@ export default function Applications() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const navigate = useNavigate();
-
-  // =========================
-  // SELECT ONE
-  // =========================
-  const toggleSelectApplication = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id)
-        ? prev.filter((i) => i !== id)
-        : [...prev, id]
-    );
-  };
-
-  // =========================
-  // SELECT ALL
-  // =========================
-  const toggleSelectAll = () => {
-    if (selectedIds.length === apps.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(apps.map((a) => a._id));
-    }
-  };
-
-  // =========================
-  // DELETE SELECTED
-  // =========================
-  const deleteSelected = async () => {
-    if (!selectedIds.length) {
-      alert("Выберите заявки");
-      return;
-    }
-
-    try {
-      await Promise.all(
-        selectedIds.map((id) =>
-          axios.delete(`${API_URL}/api/applications/${id}`, {
-            data: {
-              actorName: user?.login || user?.name || "unknown",
-              sourcePage: "Список заявок",
-            },
-          })
-        )
-      );
-
-      setApps((prev) =>
-        prev.filter((a) => !selectedIds.includes(a._id))
-      );
-
-      setSelectedIds([]);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const getStatusClass = (status) => {
     if (!status) return "status-default";
@@ -247,29 +193,12 @@ export default function Applications() {
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        <button
-          className={`bulk-delete-btn ${selectedIds.length ? "active" : ""}`}
-          onClick={deleteSelected}
-        >
-          Удалить выбранные ({selectedIds.length})
-        </button>
       </div>
 
       <div className="applications-table">
 
         {/* HEADER */}
         <div className="table-header">
-          <div className="select-col">
-            <input
-              type="checkbox"
-              onChange={toggleSelectAll}
-              checked={
-                apps.length > 0 &&
-                selectedIds.length === apps.length
-              }
-            />
-          </div>
-
           <div>№</div>
           <div>№ протокола</div>
           <div>Дата</div>
@@ -292,17 +221,6 @@ export default function Applications() {
             className="applications-table-row clickable"
             onClick={() => navigate(`/applications/${app._id}`)}
           >
-
-            <div className="select-col">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(app._id)}
-                onClick={(e) => e.stopPropagation()}
-                onChange={() =>
-                  toggleSelectApplication(app._id)
-                }
-              />
-            </div>
 
             <div>{(currentPage - 1) * pageSize + index + 1}</div>
             <div>{app.protocolNumber || "-"}</div>

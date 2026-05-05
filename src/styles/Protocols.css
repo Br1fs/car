@@ -182,7 +182,7 @@
 
   .protocols-table-header,
   .protocols-table-row {
-    min-width: 1370px;
+    min-width: 1326px;
   }
 }
 
@@ -244,7 +244,6 @@
 .protocols-table-row {
   display: grid;
   grid-template-columns:
-    44px
     70px
     170px
     120px

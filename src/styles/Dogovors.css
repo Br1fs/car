@@ -59,7 +59,6 @@
   display: grid;
   grid-template-columns:
     80px
-    80px
     150px
     140px
     240px
@@ -87,7 +86,6 @@
 .dogovors-table-row {
   display: grid;
   grid-template-columns:
-    80px
     80px
     150px
     140px

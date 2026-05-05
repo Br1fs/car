@@ -122,7 +122,6 @@
 .cars-table-row {
   display: grid;
   grid-template-columns:
-    44px
     70px
     240px
     240px

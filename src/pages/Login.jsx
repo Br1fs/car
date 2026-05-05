@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import "../styles/Auth.css";
 import { API_URL } from "../config";
+import { touchActivity } from "../utils/idleSession";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,6 +15,17 @@ export default function Login() {
 
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("authNotice") === "idle") {
+        setMessage("Сессия завершена: нет активности более 30 минут. Войдите снова.");
+        sessionStorage.removeItem("authNotice");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -31,6 +43,7 @@ export default function Login() {
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
+      touchActivity();
 
       navigate("/table");
     } catch (error) {

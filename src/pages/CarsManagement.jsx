@@ -7,7 +7,6 @@ import { API_URL } from "../config";
 export default function CarsManagement() {
   const [cars, setCars] = useState([]);
   const [search, setSearch] = useState("");
-  const [selectedIds, setSelectedIds] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -69,25 +68,6 @@ export default function CarsManagement() {
     return rows;
   }, [filteredCars]);
 
-  const visibleIds = filteredCars.map((car) => car._id);
-
-  const isAllSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
-
-  const toggleOne = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const toggleAllVisible = () => {
-    if (isAllSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
-    } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
-    }
-  };
-
   const handleDelete = async (id) => {
     try {
       if (!window.confirm("Удалить машину?")) return;
@@ -95,33 +75,9 @@ export default function CarsManagement() {
       await axios.delete(`${API_URL}/api/cars/${id}`);
 
       setCars((prev) => prev.filter((car) => car._id !== id));
-      setSelectedIds((prev) => prev.filter((x) => x !== id));
     } catch (err) {
       console.error(err);
       alert("Ошибка удаления");
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    try {
-      if (!selectedIds.length) {
-        alert("Сначала выберите машины");
-        return;
-      }
-
-      if (!window.confirm(`Удалить выбранные машины: ${selectedIds.length} шт.?`)) {
-        return;
-      }
-
-      await axios.post(`${API_URL}/api/cars/bulk-delete`, {
-        ids: selectedIds,
-      });
-
-      setCars((prev) => prev.filter((car) => !selectedIds.includes(car._id)));
-      setSelectedIds([]);
-    } catch (err) {
-      console.error(err);
-      alert("Ошибка массового удаления");
     }
   };
 
@@ -153,21 +109,9 @@ export default function CarsManagement() {
             <div className="label">Найдено по фильтру</div>
             <div className="value">{filteredCars.length}</div>
           </div>
-          <div className="cars-stat-card">
-            <div className="label">Выбрано</div>
-            <div className="value">{selectedIds.length}</div>
-          </div>
         </div>
 
         <div className="cars-page-actions">
-          <button
-            className="bulk-delete-btn"
-            disabled={!selectedIds.length}
-            onClick={handleBulkDelete}
-          >
-            Удалить выбранные ({selectedIds.length})
-          </button>
-
           <button
             type="button"
             className="add-car-btn"
@@ -189,13 +133,6 @@ export default function CarsManagement() {
 
       <div className="cars-table">
         <div className="cars-table-header">
-          <div className="checkbox-col">
-            <input
-              type="checkbox"
-              checked={isAllSelected}
-              onChange={toggleAllVisible}
-            />
-          </div>
           <div>№</div>
           <div>Тип автомобиля</div>
           <div>Тип</div>
@@ -224,13 +161,6 @@ export default function CarsManagement() {
             1;
           return (
           <div key={car._id} className="cars-table-row">
-            <div className="checkbox-col">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(car._id)}
-                onChange={() => toggleOne(car._id)}
-              />
-            </div>
             <div>{carNumber}</div>
             <div>{car.type || "-"}</div>
             <div>{car.typ || "-"}</div>

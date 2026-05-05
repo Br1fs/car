@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import "../styles/Settings.css";
 import { API_URL } from "../config";
+import { clearActivityTimestamp } from "../utils/idleSession";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function Settings() {
 
   const handleUnauthorized = (error) => {
     if (error?.response?.status !== 401) return false;
+    clearActivityTimestamp();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setAdminMessageError(true);

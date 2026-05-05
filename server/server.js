@@ -18,6 +18,7 @@ import eptsJournalRoutes from "./routes/eptsJournal.js";
 import tableJournalRoutes from "./routes/tableJournal.js";
 import declarationsRoutes from "./routes/declarations.js";
 import workNotesRoutes from "./routes/workNotes.js";
+import mailBoardRoutes from "./routes/mailBoard.js";
 
 // НОВЫЕ роуты
 import authRoutes from "./routes/authRoutes.js";
@@ -47,6 +48,7 @@ app.use("/api/dogovors", dogovorsRouter);
 app.use("/api/zayavki", zayavkiRouter);
 app.use("/api/declarations", declarationsRoutes);
 app.use("/api/work-notes", workNotesRoutes);
+app.use("/api/mail-board", mailBoardRoutes);
 
 // ===== НОВЫЕ роуты авторизации =====
 app.use("/api/auth", authRoutes);
