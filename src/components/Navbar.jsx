@@ -47,7 +47,7 @@ export default function Navbar() {
         { to: "/dogovor", label: "Договор", icon: "🖋" },
         { to: "/declaration", label: "Кнопка", icon: "📎" },
         { to: "/work-notes", label: "Рабочая запись", icon: "🗒" },
-        { to: "/mail-board", label: "Почта (канбан)", icon: "📮" },
+        { to: "/mail-board", label: "Карточки", icon: "📮" },
       ],
     },
     {

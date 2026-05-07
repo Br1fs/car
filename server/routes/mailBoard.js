@@ -8,14 +8,26 @@ import { getDB } from "../db.js";
 const router = express.Router();
 
 const COLLECTION = "mailBoardCards";
+const COLUMN_CONFIG_COLLECTION = "mailBoardColumnConfig";
+const COLUMN_DOC_ID = "singleton";
 
 const uploadDir = path.join(process.cwd(), "uploads", "mail-board");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+const decodeUtf8Name = (name) => {
+  const raw = String(name || "");
+  try {
+    return Buffer.from(raw, "latin1").toString("utf8");
+  } catch {
+    return raw;
+  }
+};
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const safe = String(file.originalname || "file").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+    const fixed = decodeUtf8Name(file.originalname || "file");
+    const safe = String(fixed).replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
     cb(null, `${Date.now()}-${safe}`);
   },
 });
@@ -28,6 +40,39 @@ const defaultColumns = () => [
   { id: "waiting", title: "Ожидаем ответ" },
   { id: "done", title: "Готово" },
 ];
+
+async function getColumnsFromDb(db) {
+  const doc = await db.collection(COLUMN_CONFIG_COLLECTION).findOne({ _id: COLUMN_DOC_ID });
+  if (!doc?.columns?.length) {
+    const columns = defaultColumns().map((c, i) => ({ ...c, sortOrder: i }));
+    await db.collection(COLUMN_CONFIG_COLLECTION).insertOne({
+      _id: COLUMN_DOC_ID,
+      columns,
+      updatedAt: new Date(),
+    });
+    return columns;
+  }
+  return [...doc.columns].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+}
+
+async function setColumnsInDb(db, columns) {
+  await db.collection(COLUMN_CONFIG_COLLECTION).updateOne(
+    { _id: COLUMN_DOC_ID },
+    { $set: { columns, updatedAt: new Date() } },
+    { upsert: true }
+  );
+}
+
+function columnIdSet(columns) {
+  return new Set(columns.map((c) => String(c.id)));
+}
+
+function unwrapUpdatedDoc(result) {
+  if (!result) return null;
+  if (result.value) return result.value;
+  if (result._id) return result;
+  return null;
+}
 
 function verifyInboundSecret(req) {
   const secret = process.env.MAIL_INBOUND_SECRET;
@@ -67,8 +112,11 @@ async function createCardFromEmail(db, payload) {
     bodyText.slice(0, 120) ||
     "Письмо без темы";
 
+  const columns = await getColumnsFromDb(db);
+  const firstColId = columns[0]?.id || "new";
+
   const doc = {
-    columnId: "new",
+    columnId: firstColId,
     title,
     bodyText: bodyText.slice(0, 20000),
     fromEmail: String(from).slice(0, 500),
@@ -89,15 +137,87 @@ async function createCardFromEmail(db, payload) {
 router.get("/", async (_req, res) => {
   try {
     const db = getDB();
+    const columns = await getColumnsFromDb(db);
     const cards = await db
       .collection(COLLECTION)
       .find({})
       .sort({ columnId: 1, sortOrder: -1, createdAt: -1 })
       .toArray();
-    res.json({ columns: defaultColumns(), cards });
+    res.json({ columns, cards });
   } catch (err) {
     console.error("MAIL_BOARD GET:", err);
     res.status(500).json({ message: "Ошибка загрузки доски" });
+  }
+});
+
+/** Добавить колонку */
+router.post("/columns", express.json(), async (req, res) => {
+  try {
+    const db = getDB();
+    const columns = await getColumnsFromDb(db);
+    const title = String(req.body?.title || "").trim() || "Новая колонка";
+    const id = `col_${Date.now()}`;
+    const next = columns.map((c, i) => ({ id: c.id, title: c.title, sortOrder: c.sortOrder ?? i }));
+    next.push({ id, title: title.slice(0, 120), sortOrder: next.length });
+    await setColumnsInDb(db, next);
+    res.json({ columns: next });
+  } catch (err) {
+    console.error("MAIL_BOARD POST column:", err);
+    res.status(500).json({ message: "Ошибка добавления колонки" });
+  }
+});
+
+/** Переименовать колонку */
+router.patch("/columns/:columnId", express.json(), async (req, res) => {
+  try {
+    const columnId = decodeURIComponent(String(req.params.columnId || ""));
+    const title = String(req.body?.title ?? "").trim();
+    if (!columnId) return res.status(400).json({ message: "Не указана колонка" });
+    if (!title) return res.status(400).json({ message: "Пустое название" });
+    const db = getDB();
+    const columns = await getColumnsFromDb(db);
+    const idx = columns.findIndex((c) => String(c.id) === columnId);
+    if (idx < 0) return res.status(404).json({ message: "Колонка не найдена" });
+    const next = columns.map((c) =>
+      String(c.id) === columnId ? { ...c, title: title.slice(0, 120), sortOrder: c.sortOrder ?? 0 } : c
+    );
+    await setColumnsInDb(db, next);
+    res.json({ columns: next });
+  } catch (err) {
+    console.error("MAIL_BOARD PATCH column:", err);
+    res.status(500).json({ message: "Ошибка переименования колонки" });
+  }
+});
+
+/** Удалить колонку (карточки переносятся в первую оставшуюся) */
+router.delete("/columns/:columnId", async (req, res) => {
+  try {
+    const columnId = decodeURIComponent(String(req.params.columnId || ""));
+    if (!columnId) return res.status(400).json({ message: "Не указана колонка" });
+    const db = getDB();
+    const columns = await getColumnsFromDb(db);
+    if (columns.length <= 1) {
+      return res.status(400).json({ message: "Нельзя удалить последнюю колонку" });
+    }
+    const idx = columns.findIndex((c) => String(c.id) === columnId);
+    if (idx < 0) return res.status(404).json({ message: "Колонка не найдена" });
+    const next = columns.filter((c) => String(c.id) !== columnId).map((c, i) => ({ ...c, sortOrder: i }));
+    const fallbackId = next[0]?.id;
+    if (!fallbackId) return res.status(500).json({ message: "Нет колонки для переноса карточек" });
+    await db.collection(COLLECTION).updateMany(
+      { columnId: columnId },
+      { $set: { columnId: fallbackId, updatedAt: new Date() } }
+    );
+    await setColumnsInDb(db, next);
+    const cards = await db
+      .collection(COLLECTION)
+      .find({})
+      .sort({ columnId: 1, sortOrder: -1, createdAt: -1 })
+      .toArray();
+    res.json({ columns: next, cards });
+  } catch (err) {
+    console.error("MAIL_BOARD DELETE column:", err);
+    res.status(500).json({ message: "Ошибка удаления колонки" });
   }
 });
 
@@ -105,11 +225,12 @@ router.get("/", async (_req, res) => {
 router.post("/cards", express.json(), async (req, res) => {
   try {
     const db = getDB();
+    const columns = await getColumnsFromDb(db);
+    const allowed = columnIdSet(columns);
     const title = String(req.body?.title || "").trim() || "Без названия";
     const bodyText = String(req.body?.bodyText || "").trim();
-    const columnId = String(req.body?.columnId || "new");
-    const allowed = new Set(["new", "progress", "waiting", "done"]);
-    const col = allowed.has(columnId) ? columnId : "new";
+    const requested = String(req.body?.columnId || columns[0]?.id || "new");
+    const col = allowed.has(requested) ? requested : columns[0]?.id || "new";
 
     const doc = {
       columnId: col,
@@ -138,8 +259,9 @@ router.patch("/cards/:id", express.json(), async (req, res) => {
     const { id } = req.params;
     if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Неверный ID" });
     const db = getDB();
+    const columns = await getColumnsFromDb(db);
+    const allowed = columnIdSet(columns);
     const patch = { updatedAt: new Date() };
-    const allowed = new Set(["new", "progress", "waiting", "done"]);
     if (req.body?.columnId !== undefined) {
       const c = String(req.body.columnId);
       if (!allowed.has(c)) return res.status(400).json({ message: "Неверная колонка" });
@@ -148,16 +270,64 @@ router.patch("/cards/:id", express.json(), async (req, res) => {
     if (req.body?.sortOrder !== undefined && Number.isFinite(Number(req.body.sortOrder))) {
       patch.sortOrder = Number(req.body.sortOrder);
     }
+    if (req.body?.title !== undefined) {
+      patch.title = String(req.body.title || "").trim().slice(0, 500) || "Без названия";
+    }
+    if (req.body?.bodyText !== undefined) {
+      patch.bodyText = String(req.body.bodyText || "").trim().slice(0, 20000);
+    }
+    if (req.body?.coverAttachment !== undefined) {
+      const cover = String(req.body.coverAttachment || "").trim();
+      patch.coverAttachment = cover || "";
+    }
     const r = await db.collection(COLLECTION).findOneAndUpdate(
       { _id: new ObjectId(id) },
       { $set: patch },
       { returnDocument: "after" }
     );
-    if (!r.value) return res.status(404).json({ message: "Карточка не найдена" });
-    res.json(r.value);
+    const updated = unwrapUpdatedDoc(r);
+    if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+    res.json(updated);
   } catch (err) {
     console.error("MAIL_BOARD PATCH:", err);
     res.status(500).json({ message: "Ошибка обновления" });
+  }
+});
+
+router.patch("/cards/:id/attachments/:filename", express.json(), async (req, res) => {
+  try {
+    const { id, filename } = req.params;
+    if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Неверный ID" });
+    const decodedFilename = decodeURIComponent(String(filename || ""));
+    if (!decodedFilename) return res.status(400).json({ message: "Не указано вложение" });
+
+    const db = getDB();
+    const card = await db.collection(COLLECTION).findOne({ _id: new ObjectId(id) });
+    if (!card) return res.status(404).json({ message: "Карточка не найдена" });
+    const idx = (card.attachments || []).findIndex((a) => String(a?.filename) === decodedFilename);
+    if (idx < 0) return res.status(404).json({ message: "Вложение не найдено" });
+
+    const setPatch = { updatedAt: new Date() };
+    if (req.body?.originalname !== undefined) {
+      const originalname = String(req.body.originalname || "").trim().slice(0, 500);
+      if (!originalname) return res.status(400).json({ message: "Имя файла пустое" });
+      setPatch[`attachments.${idx}.originalname`] = originalname;
+    }
+    if (req.body?.setCover === true) {
+      setPatch.coverAttachment = decodedFilename;
+    }
+
+    const r = await db.collection(COLLECTION).findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: setPatch },
+      { returnDocument: "after" }
+    );
+    const updated = unwrapUpdatedDoc(r);
+    if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+    res.json(updated);
+  } catch (err) {
+    console.error("MAIL_BOARD ATTACH PATCH:", err);
+    res.status(500).json({ message: "Ошибка обновления вложения" });
   }
 });
 
@@ -181,8 +351,9 @@ router.post("/cards/:id/comments", express.json(), async (req, res) => {
       { $push: { comments: comment }, $set: { updatedAt: new Date() } },
       { returnDocument: "after" }
     );
-    if (!r.value) return res.status(404).json({ message: "Карточка не найдена" });
-    res.json(r.value);
+    const updated = unwrapUpdatedDoc(r);
+    if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+    res.json(updated);
   } catch (err) {
     console.error("MAIL_BOARD COMMENT:", err);
     res.status(500).json({ message: "Ошибка комментария" });
@@ -198,7 +369,7 @@ router.post("/cards/:id/attachments", upload.single("file"), async (req, res) =>
 
     const att = {
       filename: req.file.filename,
-      originalname: req.file.originalname || req.file.filename,
+      originalname: decodeUtf8Name(req.file.originalname || req.file.filename),
       mimetype: req.file.mimetype || "",
       size: req.file.size || 0,
     };
@@ -208,11 +379,59 @@ router.post("/cards/:id/attachments", upload.single("file"), async (req, res) =>
       { $push: { attachments: att }, $set: { updatedAt: new Date() } },
       { returnDocument: "after" }
     );
-    if (!r.value) return res.status(404).json({ message: "Карточка не найдена" });
-    res.json(r.value);
+    const updated = unwrapUpdatedDoc(r);
+    if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+    res.json(updated);
   } catch (err) {
     console.error("MAIL_BOARD ATTACH:", err);
     res.status(500).json({ message: "Ошибка загрузки файла" });
+  }
+});
+
+router.delete("/cards/:id/attachments/:filename", async (req, res) => {
+  try {
+    const { id, filename } = req.params;
+    if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Неверный ID" });
+    const decodedFilename = decodeURIComponent(String(filename || ""));
+    if (!decodedFilename) return res.status(400).json({ message: "Не указано вложение" });
+
+    const db = getDB();
+    const card = await db.collection(COLLECTION).findOne({ _id: new ObjectId(id) });
+    if (!card) return res.status(404).json({ message: "Карточка не найдена" });
+
+    const attachment = (card.attachments || []).find((a) => String(a?.filename) === decodedFilename);
+    if (!attachment) return res.status(404).json({ message: "Вложение не найдено" });
+
+    const fp = path.join(uploadDir, decodedFilename);
+    try {
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    } catch (e) {
+      console.warn("MAIL_BOARD ATTACH DELETE FILE WARN:", e?.message || e);
+    }
+
+    const r = await db.collection(COLLECTION).findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $pull: { attachments: { filename: decodedFilename } },
+        $set: { updatedAt: new Date() },
+      },
+      { returnDocument: "after" }
+    );
+    const updated = unwrapUpdatedDoc(r);
+    if (!updated) return res.status(404).json({ message: "Карточка не найдена" });
+    if (String(updated.coverAttachment || "") === decodedFilename) {
+      const rr = await db.collection(COLLECTION).findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: { coverAttachment: "", updatedAt: new Date() } },
+        { returnDocument: "after" }
+      );
+      const updated2 = unwrapUpdatedDoc(rr);
+      return res.json(updated2 || updated);
+    }
+    res.json(updated);
+  } catch (err) {
+    console.error("MAIL_BOARD ATTACH DELETE:", err);
+    res.status(500).json({ message: "Ошибка удаления вложения" });
   }
 });
 

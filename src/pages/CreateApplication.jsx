@@ -182,6 +182,9 @@ const pickBestVinValue = (values = []) => {
 };
 
 const fuelOptions = ["Бензин", "Дизель", "Электро"];
+const buildExtraEquipmentText = ({ iccid = "", imei = "" } = {}) =>
+  `Оснащен устройством вызова экстренных оперативных служб: FALCON 004901 ICCID: ${iccid}, IMEI: ${imei}
+Сертификат Соответствия RU С-RU.ЭМ03.В.00168/24, срок действия с 02.12.2024 по 01.12.2028, подписан Репина Д.А.`;
 
 const normalizeFuelLabel = (value) => {
   const fuel = String(value || "").trim().toLowerCase().replace("ё", "е");
@@ -819,6 +822,7 @@ const { id } = useParams();
   const handleFileChange = (e, key) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (!selectedFiles.length) return;
+    const primaryFile = selectedFiles[0];
 
     setFiles((prev) => {
       if (key === "photos") {
@@ -830,7 +834,7 @@ const { id } = useParams();
 
       return {
         ...prev,
-        [key]: selectedFiles[0],
+        [key]: primaryFile,
       };
     });
 
@@ -851,8 +855,8 @@ const { id } = useParams();
         ...prev.filter((item) => item.key !== key),
         {
           key,
-          savedName: selectedFiles[0].name,
-          originalName: selectedFiles[0].name,
+          savedName: primaryFile.name,
+          originalName: primaryFile.name,
           isExisting: false,
           index: 0,
         },
@@ -868,6 +872,80 @@ const { id } = useParams();
           [key]: [],
         },
       }));
+    }
+
+    if (key === "actDoc") {
+      void autofillExtraEquipmentFromAct(primaryFile);
+    }
+  };
+
+  const extractActEquipmentValues = (rawText) => {
+    const compact = String(rawText || "")
+      .replace(/\u00A0/g, " ")
+      .replace(/[^\S\r\n]+/g, " ")
+      .trim();
+    if (!compact) return { iccid: "", imei: "" };
+
+    const digitsOnly = compact.replace(/\D/g, " ");
+    const imeiByLabel = compact.match(/IMEI\s*[:\-]?\s*([\d\s-]{14,20})/i)?.[1] || "";
+    const iccidByLabel = compact.match(/ICCID\s*[:\-]?\s*([\d\s-]{18,25})/i)?.[1] || "";
+
+    const imei =
+      imeiByLabel.replace(/\D/g, "").slice(0, 15) ||
+      (digitsOnly.match(/\b\d{15}\b/) || [])[0] ||
+      "";
+    const iccid =
+      iccidByLabel.replace(/\D/g, "").slice(0, 20) ||
+      (digitsOnly.match(/\b89\d{18}\b/) || [])[0] ||
+      (digitsOnly.match(/\b\d{20}\b/) || [])[0] ||
+      "";
+
+    return { iccid, imei };
+  };
+
+  const autofillExtraEquipmentFromAct = async (file) => {
+    if (!file) return;
+    try {
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      const isImage = String(file.type || "").startsWith("image/");
+      let sourceText = "";
+
+      if (isPdf) {
+        let textLayer = "";
+        try {
+          textLayer = await extractPdfText(file);
+        } catch {
+          textLayer = "";
+        }
+        sourceText = textLayer;
+        if (!textLayer.trim()) {
+          const worker = await createOcrWorkerSafe();
+          const pageCanvas = await renderPdfFirstPageCanvas(file);
+          const result = await worker.recognize(pageCanvas);
+          sourceText = result?.data?.text || "";
+          await worker.terminate();
+        }
+      } else if (isImage) {
+        const worker = await createOcrWorkerSafe();
+        const result = await worker.recognize(file);
+        sourceText = result?.data?.text || "";
+        await worker.terminate();
+      } else {
+        return;
+      }
+
+      const { iccid, imei } = extractActEquipmentValues(sourceText);
+      if (!iccid && !imei) return;
+
+      setForm((prev) => ({
+        ...prev,
+        extraEquipment: buildExtraEquipmentText({
+          iccid: iccid || "",
+          imei: imei || "",
+        }),
+      }));
+    } catch (err) {
+      console.error("ACT PARSE ERROR:", err);
     }
   };
 
