@@ -116,7 +116,8 @@ export default function MailBoard() {
     };
   }, []);
 
-  const fileUrl = (filename) => `${API_URL}/uploads/mail-board/${filename}`;
+  const fileUrl = (filename) =>
+    `${API_URL}/api/mail-board/files/${encodeURIComponent(String(filename || ""))}`;
   const displayAttachmentName = (a) => decodeMojibake(a?.originalname || a?.filename || "file");
 
   const isImageAttachment = (att) => {

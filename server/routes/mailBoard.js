@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { ObjectId } from "mongodb";
 import { getDB } from "../db.js";
 
@@ -23,16 +24,66 @@ const decodeUtf8Name = (name) => {
   }
 };
 
+/** Имя на диске только ASCII — без проблем с URL и кодировкой ОС. */
+const makeDiskFilename = (originalname) => {
+  const raw = String(originalname || "file");
+  let ext = path.extname(raw).toLowerCase().replace(/[^a-z0-9.]/g, "") || "";
+  if (ext.length > 12) ext = ext.slice(0, 12);
+  if (ext.length < 2 || ext === ".") ext = "";
+  if (ext && !/^\.[a-z0-9]{1,10}$/.test(ext)) ext = "";
+  return `${Date.now()}-${crypto.randomUUID()}${ext}`;
+};
+
+/**
+ * Человекочитаемое имя для БД: не трогаем нормальный кириллический UTF-8;
+ * для типичного mojibake (UTF-8 прочитанный как latin1) пробуем decodeUtf8Name.
+ */
+const normalizeDisplayName = (raw) => {
+  const s = String(raw || "").replace(/\0/g, "").trim() || "file";
+  if (/[\u0400-\u04FF]/.test(s)) return s.slice(0, 500);
+  const fixed = decodeUtf8Name(s);
+  if (fixed !== s && /[\u0400-\u04FF]/.test(fixed)) return fixed.slice(0, 500);
+  return s.slice(0, 500);
+};
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const fixed = decodeUtf8Name(file.originalname || "file");
-    const safe = String(fixed).replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
-    cb(null, `${Date.now()}-${safe}`);
+    cb(null, makeDiskFilename(file.originalname || "file"));
   },
 });
 
 const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } });
+
+/** Раздача вложений (корректный decode URI; путь не выходит из uploadDir). */
+router.get("/files/:filename", (req, res) => {
+  let filename = "";
+  try {
+    filename = decodeURIComponent(String(req.params.filename || ""));
+  } catch {
+    return res.status(400).send("Bad filename encoding");
+  }
+  if (!filename || filename.includes("..") || /[/\\]/.test(filename)) {
+    return res.status(400).send("Bad filename");
+  }
+  const base = path.basename(filename);
+  if (base !== filename) return res.status(400).send("Bad filename");
+  const fp = path.resolve(uploadDir, base);
+  const root = path.resolve(uploadDir);
+  if (!fp.startsWith(root + path.sep) && fp !== root) {
+    return res.status(403).end();
+  }
+  if (!fs.existsSync(fp)) return res.status(404).send("Not found");
+  res.sendFile(fp, (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
+
+if (process.env.RENDER) {
+  console.warn(
+    "[mail-board] Render: диск по умолчанию эфемерный — файлы в uploads/ пропадают после деплоя/перезапуска. Подключите Persistent Disk или S3."
+  );
+}
 
 const defaultColumns = () => [
   { id: "new", title: "Новая заявка (почта)" },
@@ -369,7 +420,7 @@ router.post("/cards/:id/attachments", upload.single("file"), async (req, res) =>
 
     const att = {
       filename: req.file.filename,
-      originalname: decodeUtf8Name(req.file.originalname || req.file.filename),
+      originalname: normalizeDisplayName(req.file.originalname || req.file.filename),
       mimetype: req.file.mimetype || "",
       size: req.file.size || 0,
     };
