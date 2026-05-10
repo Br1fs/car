@@ -9,6 +9,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const token = localStorage.getItem("token");
+  const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "admin/user";
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,12 +94,12 @@ export default function Settings() {
   };
 
   useEffect(() => {
-    if (user?.role === "admin") {
+    if (isAdmin || isManager) {
       fetchUsers();
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin, isManager]);
 
   const approveUser = async (id) => {
     try {
@@ -261,7 +263,7 @@ export default function Settings() {
     );
   }
 
-  if (user.role !== "admin") {
+  if (!isAdmin && !isManager) {
     return (
       <div className="settings-page">
         <div className="settings-card settings-user-card settings-grid">
@@ -351,55 +353,72 @@ export default function Settings() {
                   <td>{item.login}</td>
                   <td>{item.email || "-"}</td>
                   <td>
-                    <input
-                      className="settings-cell-input"
-                      defaultValue={item.position || ""}
-                      onBlur={(e) => updateAdminUser(item._id, { position: e.target.value })}
-                      placeholder="Должность"
-                    />
+                    {isAdmin ? (
+                      <input
+                        className="settings-cell-input"
+                        defaultValue={item.position || ""}
+                        onBlur={(e) => updateAdminUser(item._id, { position: e.target.value })}
+                        placeholder="Должность"
+                      />
+                    ) : (
+                      item.position || "-"
+                    )}
                   </td>
                   <td>
-                    <select
-                      className="settings-cell-select"
-                      value={item.role}
-                      onChange={(e) => updateAdminUser(item._id, { role: e.target.value })}
-                    >
-                      <option value="user">user</option>
-                      <option value="admin">admin</option>
-                    </select>
+                    {isAdmin ? (
+                      <select
+                        className="settings-cell-select"
+                        value={item.role}
+                        onChange={(e) => updateAdminUser(item._id, { role: e.target.value })}
+                      >
+                        <option value="user">user</option>
+                        <option value="admin/user">admin/user</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    ) : (
+                      item.role || "-"
+                    )}
                   </td>
                   <td>
-                    <select
-                      className="settings-cell-select"
-                      value={item.status}
-                      onChange={(e) => updateAdminUser(item._id, { status: e.target.value })}
-                    >
-                      <option value="pending">pending</option>
-                      <option value="approved">approved</option>
-                      <option value="rejected">rejected</option>
-                    </select>
+                    {isAdmin ? (
+                      <select
+                        className="settings-cell-select"
+                        value={item.status}
+                        onChange={(e) => updateAdminUser(item._id, { status: e.target.value })}
+                      >
+                        <option value="pending">pending</option>
+                        <option value="approved">approved</option>
+                        <option value="rejected">rejected</option>
+                      </select>
+                    ) : (
+                      item.status || "-"
+                    )}
                   </td>
                   <td>
-                    <div className="settings-actions">
-                      <button
-                        className="settings-btn approve"
-                        onClick={() => approveUser(item._id)}
-                      >
-                        Одобрить
-                      </button>
-                      <button
-                        className="settings-btn reject"
-                        onClick={() => rejectUser(item._id)}
-                      >
-                        Отклонить
-                      </button>
-                      <button
-                        className="settings-btn delete"
-                        onClick={() => deleteUser(item._id)}
-                      >
-                        Удалить
-                      </button>
-                    </div>
+                    {isAdmin ? (
+                      <div className="settings-actions">
+                        <button
+                          className="settings-btn approve"
+                          onClick={() => approveUser(item._id)}
+                        >
+                          Одобрить
+                        </button>
+                        <button
+                          className="settings-btn reject"
+                          onClick={() => rejectUser(item._id)}
+                        >
+                          Отклонить
+                        </button>
+                        <button
+                          className="settings-btn delete"
+                          onClick={() => deleteUser(item._id)}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ) : (
+                      <span>-</span>
+                    )}
                   </td>
                 </tr>
               ))}

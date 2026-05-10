@@ -195,6 +195,7 @@ export default function Applications() {
 
       </div>
 
+      <div className="applications-table-block">
       <div className="applications-table">
 
         {/* HEADER */}
@@ -362,6 +363,7 @@ export default function Applications() {
             Вперед
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

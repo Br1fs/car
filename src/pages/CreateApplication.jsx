@@ -12,6 +12,7 @@ import { API_URL } from "../config";
 import TimerTracker from "../components/TimerTracker";
 import { createLogEntry } from "../utils/timeTracker";
 import "../styles/CreateApplication.css";
+import { formatGenerationYearSpan } from "../utils/generationYears.js";
 
 const isMCategory = (category) => {
   const c = String(category || "").trim().toLowerCase();
@@ -250,8 +251,6 @@ const isEqualLoose = (left, right) => {
 
 const collator = new Intl.Collator("ru", { sensitivity: "base", numeric: true });
 const sortAlpha = (arr) => [...arr].sort((a, b) => collator.compare(String(a), String(b)));
-const sortNumericAsc = (arr) =>
-  [...arr].sort((a, b) => Number(String(a).replace(",", ".")) - Number(String(b).replace(",", ".")));
 
 const groupByFirstLetter = (items) => {
   const grouped = new Map();
@@ -266,6 +265,29 @@ const groupByFirstLetter = (items) => {
   return [...grouped.entries()]
     .sort((a, b) => collator.compare(a[0], b[0]))
     .map(([letter, values]) => ({ letter, values: sortAlpha(values) }));
+};
+
+/** Текст и флаги для карточки «поколение» (как на Kolesa). */
+const buildGenerationCardDisplay = (car) => {
+  const yf = car.generationYearFrom ?? car.year;
+  const yt = car.generationYearTo ?? car.year;
+  const yearsLine = formatGenerationYearSpan(yf, yt, car.year);
+  const chassis = String(car.generationChassis || car.chassis || "").trim();
+  const facelift =
+    car.generationFacelift === true ||
+    String(car.generationFacelift || "")
+      .toLowerCase()
+      .includes("рестайл") ||
+    String(car.generationFacelift || "").toLowerCase() === "да";
+  return { yearsLine, chassis, facelift };
+};
+
+const resolveCarGenerationImage = (raw, apiBase) => {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("/")) return `${apiBase}${s}`;
+  return `${apiBase}/uploads/${s}`;
 };
 
 export default function CreateApplication() {
@@ -362,6 +384,7 @@ useEffect(() => {
     model: "",
     year: "",
     volume: "",
+    pickCarId: "",
   });
   const [files, setFiles] = useState({});
   const [filesUploaded, setFilesUploaded] = useState([]);
@@ -437,13 +460,24 @@ const { id } = useParams();
     ...prev,
     ...selectedCar,
   }));
-  setCarSelection({
+  const nextSel = {
     type: selectedCar.type || "",
     brand: selectedCar.brand || "",
     model: selectedCar.model || "",
     year: selectedCar.year ? String(selectedCar.year) : "",
-    volume: selectedCar.volume ? String(selectedCar.volume) : "",
+    volume: selectedCar.volume != null && selectedCar.volume !== "" ? String(selectedCar.volume) : "",
+    pickCarId: "",
+  };
+  const matchCopy = cars.find((car) => {
+    if (!isEqualLoose(car.type, nextSel.type)) return false;
+    if (!isEqualLoose(car.brand, nextSel.brand)) return false;
+    if (!isEqualLoose(car.model, nextSel.model)) return false;
+    if (nextSel.year && !isEqualLoose(car.year, nextSel.year)) return false;
+    if (nextSel.volume !== "" && !isEqualLoose(car.volume, nextSel.volume)) return false;
+    return true;
   });
+  if (matchCopy?._id) nextSel.pickCarId = String(matchCopy._id);
+  setCarSelection(nextSel);
 }, [cars, location.state]);
 
   useEffect(() => {
@@ -474,13 +508,15 @@ const { id } = useParams();
           createdAt: formatDate(data.createdAt),
           protocolDate: formatDate(data.protocolDate),
         });
-        setCarSelection({
+        const sel = {
           type: data.type || "",
           brand: data.brand || "",
           model: data.model || "",
           year: data.year ? String(data.year) : "",
-          volume: data.volume ? String(data.volume) : "",
-        });
+          volume: data.volume != null && data.volume !== "" ? String(data.volume) : "",
+          pickCarId: "",
+        };
+        setCarSelection(sel);
         setProtocolNumber(normalizeProtocol(data.protocolNumber));
 
         const loadedFiles = [];
@@ -505,7 +541,22 @@ const { id } = useParams();
       });
   }, [id]);
 
-  
+  useEffect(() => {
+    if (!id || !cars.length) return;
+    setCarSelection((prev) => {
+      if (!prev.type || !prev.brand || !prev.model || prev.pickCarId) return prev;
+      const m = cars.find((car) => {
+        if (!isEqualLoose(car.type, prev.type)) return false;
+        if (!isEqualLoose(car.brand, prev.brand)) return false;
+        if (!isEqualLoose(car.model, prev.model)) return false;
+        if (prev.year && !isEqualLoose(car.year, prev.year)) return false;
+        if (prev.volume !== "" && prev.volume != null && !isEqualLoose(car.volume, prev.volume)) return false;
+        return true;
+      });
+      if (!m?._id) return prev;
+      return { ...prev, pickCarId: String(m._id) };
+    });
+  }, [id, cars]);
 
   const characteristics = useMemo(() => buildCharacteristics(form), [form]);
 
@@ -550,42 +601,33 @@ const { id } = useParams();
     [carsByFuel, carSelection.type, carSelection.brand]
   );
 
-  const yearOptions = useMemo(
-    () =>
-      sortNumericAsc([
-        ...new Set(
-          carsByFuel
-            .filter(
-              (c) =>
-                (!carSelection.type || c.type === carSelection.type) &&
-                (!carSelection.brand || c.brand === carSelection.brand) &&
-                (!carSelection.model || c.model === carSelection.model)
-            )
-            .map((c) => c.year)
-            .filter((y) => y !== undefined && y !== null && y !== "")
-        ),
-      ]),
-    [carsByFuel, carSelection.type, carSelection.brand, carSelection.model]
-  );
+  const generationCandidates = useMemo(() => {
+    if (!carSelection.type || !carSelection.brand || !carSelection.model) return [];
+    return carsByFuel
+      .filter(
+        (c) =>
+          c.type === carSelection.type &&
+          c.brand === carSelection.brand &&
+          c.model === carSelection.model
+      )
+      .sort((a, b) => {
+        const ay = Number(a.generationYearFrom ?? a.year) || 0;
+        const by = Number(b.generationYearFrom ?? b.year) || 0;
+        if (ay !== by) return ay - by;
+        const av = Number(String(a.volume ?? "").replace(",", ".")) || 0;
+        const bv = Number(String(b.volume ?? "").replace(",", ".")) || 0;
+        return av - bv;
+      });
+  }, [carsByFuel, carSelection.type, carSelection.brand, carSelection.model]);
 
-  const volumeOptions = useMemo(
-    () =>
-      sortNumericAsc([
-        ...new Set(
-          carsByFuel
-            .filter(
-              (c) =>
-                (!carSelection.type || c.type === carSelection.type) &&
-                (!carSelection.brand || c.brand === carSelection.brand) &&
-                (!carSelection.model || c.model === carSelection.model) &&
-                (!carSelection.year || Number(c.year) === Number(carSelection.year))
-            )
-            .map((c) => c.volume)
-            .filter((v) => v !== undefined && v !== null && v !== "")
-        ),
-      ]),
-    [carsByFuel, carSelection.type, carSelection.brand, carSelection.model, carSelection.year]
-  );
+  const selectedGenerationSummary = useMemo(() => {
+    if (!carSelection.pickCarId) return "";
+    const c = generationCandidates.find((x) => String(x._id) === String(carSelection.pickCarId));
+    if (!c) return "";
+    const d = buildGenerationCardDisplay(c);
+    const label = String(c.generationLabel || "").trim();
+    return label || [d.yearsLine, d.chassis].filter(Boolean).join(" · ");
+  }, [generationCandidates, carSelection.pickCarId]);
 
   useEffect(() => {
     if (!cars.length) return;
@@ -596,8 +638,12 @@ const { id } = useParams();
       if (!isEqualLoose(car.brand, carSelection.brand)) return false;
       if (!isEqualLoose(car.model, carSelection.model)) return false;
 
-      if (carSelection.year && !isEqualLoose(car.year, carSelection.year)) return false;
-      if (carSelection.volume && !isEqualLoose(car.volume, carSelection.volume)) return false;
+      if (carSelection.pickCarId) return String(car._id) === String(carSelection.pickCarId);
+      const hasYear = String(carSelection.year ?? "").trim() !== "";
+      const hasVol = String(carSelection.volume ?? "").trim() !== "";
+      if (!hasYear && !hasVol) return false;
+      if (hasYear && !isEqualLoose(car.year, carSelection.year)) return false;
+      if (hasVol && !isEqualLoose(car.volume, carSelection.volume)) return false;
       return true;
     });
 
@@ -623,7 +669,15 @@ const { id } = useParams();
       const changed = Object.keys(next).some((key) => String(next[key] ?? "") !== String(prev[key] ?? ""));
       return changed ? next : prev;
     });
-  }, [cars, carSelection.type, carSelection.brand, carSelection.model, carSelection.year, carSelection.volume]);
+  }, [
+    cars,
+    carSelection.type,
+    carSelection.brand,
+    carSelection.model,
+    carSelection.year,
+    carSelection.volume,
+    carSelection.pickCarId,
+  ]);
 
   const handleCarSelectionChange = (e) => {
     const { name, value } = e.target;
@@ -639,18 +693,22 @@ const { id } = useParams();
         next.model = "";
         next.year = "";
         next.volume = "";
+        next.pickCarId = "";
       }
       if (name === "brand") {
         next.model = "";
         next.year = "";
         next.volume = "";
+        next.pickCarId = "";
       }
       if (name === "model") {
         next.year = "";
         next.volume = "";
+        next.pickCarId = "";
       }
       if (name === "year") {
         next.volume = "";
+        next.pickCarId = "";
       }
 
       return next;
@@ -683,6 +741,16 @@ const { id } = useParams();
     });
   };
 
+  const pickGenerationCar = (car) => {
+    if (!car?._id) return;
+    setCarSelection((prev) => ({
+      ...prev,
+      year: car.year != null && car.year !== "" ? String(car.year) : "",
+      volume: car.volume != null && car.volume !== "" ? String(car.volume) : "",
+      pickCarId: String(car._id),
+    }));
+  };
+
   const handleFuelTypeSelectionChange = (e) => {
     const value = e.target.value;
 
@@ -692,6 +760,7 @@ const { id } = useParams();
       model: "",
       year: "",
       volume: "",
+      pickCarId: "",
     });
 
     setForm((prev) => ({
@@ -2943,83 +3012,162 @@ doc.setFont("Roboto", "normal");
         <input name="createdAt" type="date" value={form.createdAt} onChange={handleChange} />
 
         <div style={{ fontSize: 12, color: "#475569", marginTop: 2, marginBottom: 4 }}>
-          Найдено машин: {carsByFuel.length}
+          В базе по топливу: {carsByFuel.length}
+          {carSelection.model
+            ? ` · вариантов поколения: ${generationCandidates.length}`
+            : ""}
         </div>
 
-        <select name="fuelType" value={form.fuelType || ""} onChange={handleFuelTypeSelectionChange}>
-          <option value="">Выберите топливо</option>
-          {fuelOptions.map((fuel) => (
-            <option key={fuel} value={fuel}>
-              {fuel}
-            </option>
-          ))}
-        </select>
-
-        <select name="type" value={carSelection.type} onChange={handleCarSelectionChange}>
-          <option value="">Выберите тип автомобиля</option>
-          {typeOptions.map((t, i) => (
-            <option key={i} value={t}>{t}</option>
-          ))}
-        </select>
-
-        <select name="brand" value={carSelection.brand} onChange={handleCarSelectionChange}>
-          <option value="">Выберите марку</option>
-          {brandOptionGroups.map((group) => (
-            <optgroup key={group.letter} label={group.letter}>
-              {group.values.map((value) => (
-                <option key={`${group.letter}-${value}`} value={value}>
-                  {value}
-                </option>
+        <div className="car-picker-kolesa">
+          <div className="car-picker-block">
+            <div className="car-picker-row-label">Топливо</div>
+            <div className="car-picker-chips" role="group" aria-label="Топливо">
+              <button
+                type="button"
+                className={`car-picker-chip ${form.fuelType === "" ? "car-picker-chip-active" : ""}`}
+                onClick={() => handleFuelTypeSelectionChange({ target: { value: "" } })}
+              >
+                Все
+              </button>
+              {fuelOptions.map((fuel) => (
+                <button
+                  key={fuel}
+                  type="button"
+                  className={`car-picker-chip ${form.fuelType === fuel ? "car-picker-chip-active" : ""}`}
+                  onClick={() => handleFuelTypeSelectionChange({ target: { value: fuel } })}
+                >
+                  {fuel}
+                </button>
               ))}
-            </optgroup>
-          ))}
-        </select>
+            </div>
+          </div>
 
-        <select
-          name="model"
-          value={carSelection.model}
-          onChange={handleCarSelectionChange}
-          disabled={!carSelection.brand}
-        >
-          <option value="">
-            {!carSelection.brand ? "Сначала выберите марку" : "Выберите модель"}
-          </option>
-          {modelOptions.map((m, i) => (
-            <option key={i} value={m}>{m}</option>
-          ))}
-        </select>
+          <div className="car-picker-block">
+            <div className="car-picker-row-label">Тип ТС</div>
+            <div className="car-picker-chips car-picker-chips-scroll" role="listbox" aria-label="Тип автомобиля">
+              <button
+                type="button"
+                className={`car-picker-chip ${carSelection.type === "" ? "car-picker-chip-active" : ""}`}
+                onClick={() => handleCarSelectionChange({ target: { name: "type", value: "" } })}
+              >
+                —
+              </button>
+              {typeOptions.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`car-picker-chip ${carSelection.type === t ? "car-picker-chip-active" : ""}`}
+                  onClick={() => handleCarSelectionChange({ target: { name: "type", value: t } })}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <select
-          name="year"
-          value={carSelection.year}
-          onChange={handleCarSelectionChange}
-          disabled={!carSelection.brand || !carSelection.model}
-        >
-          <option value="">
-            {!carSelection.brand
-              ? "Сначала выберите марку"
-              : !carSelection.model
-                ? "Сначала выберите модель"
-                : "Выберите год"}
-          </option>
-          {yearOptions.map((y, i) => (
-            <option key={i} value={y}>{y}</option>
-          ))}
-        </select>
+          <div className="car-picker-block">
+            <div className="car-picker-row-label">Марка</div>
+            <div className="car-picker-chips car-picker-chips-scroll" role="listbox" aria-label="Марка">
+              <button
+                type="button"
+                className={`car-picker-chip ${carSelection.brand === "" ? "car-picker-chip-active" : ""}`}
+                onClick={() => handleCarSelectionChange({ target: { name: "brand", value: "" } })}
+              >
+                —
+              </button>
+              {brandOptionGroups.flatMap((g) =>
+                g.values.map((value) => (
+                  <button
+                    key={`${g.letter}-${value}`}
+                    type="button"
+                    className={`car-picker-chip ${carSelection.brand === value ? "car-picker-chip-active" : ""}`}
+                    onClick={() => handleCarSelectionChange({ target: { name: "brand", value } })}
+                  >
+                    {value}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
 
-        <select
-          name="volume"
-          value={carSelection.volume}
-          onChange={handleCarSelectionChange}
-          disabled={!carSelection.year}
-        >
-          <option value="">
-            {!carSelection.year ? "Сначала выберите год" : "Выберите объём"}
-          </option>
-          {volumeOptions.map((v, i) => (
-            <option key={i} value={v}>{v}</option>
-          ))}
-        </select>
+          <div className="car-picker-block">
+            <div className="car-picker-row-label">Модель</div>
+            <div className="car-picker-chips car-picker-chips-scroll" role="listbox" aria-label="Модель">
+              <button
+                type="button"
+                className={`car-picker-chip ${carSelection.model === "" ? "car-picker-chip-active" : ""}`}
+                disabled={!carSelection.brand}
+                onClick={() => handleCarSelectionChange({ target: { name: "model", value: "" } })}
+              >
+                —
+              </button>
+              {modelOptions.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={`car-picker-chip ${carSelection.model === m ? "car-picker-chip-active" : ""}`}
+                  disabled={!carSelection.brand}
+                  onClick={() => handleCarSelectionChange({ target: { name: "model", value: m } })}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {carSelection.type && carSelection.brand && carSelection.model ? (
+            <div className="car-picker-generations">
+              <div className="car-picker-gen-head">
+                <span className="car-picker-gen-title">Поколение</span>
+                {selectedGenerationSummary ? (
+                  <span className="car-picker-gen-pill">{selectedGenerationSummary}</span>
+                ) : (
+                  <span className="car-picker-gen-hint">Выберите карточку</span>
+                )}
+              </div>
+              {generationCandidates.length === 0 ? (
+                <div className="car-picker-gen-empty">Нет записей в базе для этой модели и топлива.</div>
+              ) : (
+                <div className="car-picker-gen-grid">
+                  {generationCandidates.map((car) => {
+                    const d = buildGenerationCardDisplay(car);
+                    const img = resolveCarGenerationImage(car.generationImage || car.coverImage, API_URL);
+                    const selected = String(carSelection.pickCarId) === String(car._id);
+                    return (
+                      <button
+                        key={String(car._id)}
+                        type="button"
+                        className={`car-gen-card ${selected ? "car-gen-card-selected" : ""}`}
+                        onClick={() => pickGenerationCar(car)}
+                      >
+                        <div
+                          className="car-gen-card-bg"
+                          style={
+                            img
+                              ? { backgroundImage: `url(${img})` }
+                              : undefined
+                          }
+                        />
+                        <div className="car-gen-card-shade" />
+                        <span className="car-gen-card-check" aria-hidden>
+                          {selected ? "✓" : ""}
+                        </span>
+                        <div className="car-gen-card-text">
+                          <div className="car-gen-card-years">{d.yearsLine}</div>
+                          {d.chassis ? <div className="car-gen-card-chassis">{d.chassis}</div> : null}
+                          {d.facelift ? <div className="car-gen-card-facelift">рестайлинг</div> : null}
+                          {car.volume != null && car.volume !== "" ? (
+                            <div className="car-gen-card-vol">{String(car.volume)} л</div>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
 
         <div className="left-section">
           <h3 className="left-section-title">Документы</h3>

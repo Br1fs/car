@@ -91,7 +91,7 @@ export const updateUser = async (req, res) => {
     const { role, status, position = "" } = req.body;
     const userId = req.params.id;
 
-    const allowedRoles = ["admin", "user"];
+    const allowedRoles = ["admin", "admin/user", "user"];
     const allowedStatuses = ["approved", "pending", "rejected"];
 
     if (role && !allowedRoles.includes(role)) {

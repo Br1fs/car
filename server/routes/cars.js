@@ -1,8 +1,60 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import crypto from "crypto";
 import { getDB } from "../db.js";
 import { ObjectId } from "mongodb";
 
 const router = express.Router();
+
+const genCoverDir = path.join(process.cwd(), "uploads", "car-generations");
+if (!fs.existsSync(genCoverDir)) fs.mkdirSync(genCoverDir, { recursive: true });
+
+const genCoverStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, genCoverDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(String(file.originalname || "")).toLowerCase().replace(/[^a-z0-9.]/g, "") || ".jpg";
+    const safeExt = ext.length <= 8 ? ext : ".jpg";
+    cb(null, `${Date.now()}-${crypto.randomUUID()}${safeExt}`);
+  },
+});
+
+const genCoverUpload = multer({
+  storage: genCoverStorage,
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = /^image\/(jpeg|png|gif|webp)$/i.test(String(file.mimetype || ""));
+    if (ok) cb(null, true);
+    else cb(new Error("Только изображения JPEG, PNG, GIF, WebP"));
+  },
+});
+
+function unlinkGenerationFile(stored) {
+  const rel = String(stored || "").trim();
+  if (!rel || rel.includes("..")) return;
+  const base = rel.replace(/^\//, "").replace(/^uploads\//, "");
+  if (!base.startsWith("car-generations/")) return;
+  const fp = path.join(process.cwd(), "uploads", base);
+  try {
+    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+  } catch (e) {
+    console.warn("CAR_GEN_COVER_UNLINK:", e?.message || e);
+  }
+}
+
+/** Обложка поколения: файл с ПК → `car-generations/<имя>` в uploads */
+router.post("/upload-generation-cover", (req, res) => {
+  genCoverUpload.single("file")(req, res, (err) => {
+    if (err) {
+      const msg = err.message || "Ошибка загрузки";
+      return res.status(400).json({ message: msg });
+    }
+    if (!req.file) return res.status(400).json({ message: "Нет файла" });
+    const relative = `car-generations/${req.file.filename}`;
+    return res.json({ path: relative, url: `/uploads/${relative}` });
+  });
+});
 
 // ================= GET все машины =================
 router.get("/", async (req, res) => {
@@ -117,6 +169,10 @@ router.delete("/:id", async (req, res) => {
     }
 
     const db = getDB();
+    const existing = await db.collection("cars").findOne({ _id: new ObjectId(id) });
+    if (existing?.generationImage) unlinkGenerationFile(existing.generationImage);
+    if (existing?.coverImage) unlinkGenerationFile(existing.coverImage);
+
     const result = await db.collection("cars").deleteOne({ _id: new ObjectId(id) });
 
     if (result.deletedCount === 0) {

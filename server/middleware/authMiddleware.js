@@ -26,3 +26,11 @@ export const adminMiddleware = (req, res, next) => {
 
   next();
 };
+
+export const adminOrManagerMiddleware = (req, res, next) => {
+  if (req.user.role !== "admin" && req.user.role !== "admin/user") {
+    return res.status(403).json({ message: "Доступ только для администратора или admin/user" });
+  }
+
+  next();
+};

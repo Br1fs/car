@@ -3,6 +3,31 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../styles/CarsManagement.css";
 import { API_URL } from "../config";
+import { formatGenerationYearSpan } from "../utils/generationYears.js";
+
+const carGenThumbUrl = (car) => {
+  const raw = String(car.generationImage || car.coverImage || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith("/")) return `${API_URL}${raw}`;
+  return `${API_URL}/uploads/${raw}`;
+};
+
+const carGenRowSummary = (car) => {
+  const label = String(car.generationLabel || "").trim();
+  if (label) return label.length > 48 ? `${label.slice(0, 46)}…` : label;
+  const yf = car.generationYearFrom ?? car.year;
+  const yt = car.generationYearTo ?? car.year;
+  const yrs = formatGenerationYearSpan(yf, yt, car.year);
+  const ch = String(car.generationChassis || car.chassis || "").trim();
+  const f =
+    car.generationFacelift === true ||
+    String(car.generationFacelift || "").toLowerCase().includes("рестайл") ||
+    String(car.generationFacelift || "").toLowerCase() === "да";
+  const seg = [yrs, ch].filter(Boolean).join(" ");
+  const line = f ? `${seg} · рестайлинг` : seg;
+  return line || "—";
+};
 
 export default function CarsManagement() {
   const [cars, setCars] = useState([]);
@@ -35,7 +60,9 @@ export default function CarsManagement() {
           String(car.model || "").toLowerCase().includes(q) ||
           String(car.category || "").toLowerCase().includes(q) ||
           String(car.volume || car.engineVolume || "").toLowerCase().includes(q) ||
-          String(car.year || "").toLowerCase().includes(q)
+          String(car.year || "").toLowerCase().includes(q) ||
+          String(car.generationChassis || car.chassis || "").toLowerCase().includes(q) ||
+          String(car.generationLabel || "").toLowerCase().includes(q)
         );
       })
       .sort((a, b) => {
@@ -125,7 +152,7 @@ export default function CarsManagement() {
       <div className="cars-page-header">
         <input
           type="text"
-          placeholder="Поиск: тип, марка, модель, объём..."
+          placeholder="Поиск: тип, марка, модель, поколение, шасси…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -133,6 +160,7 @@ export default function CarsManagement() {
 
       <div className="cars-table">
         <div className="cars-table-header">
+          <div className="cars-col-thumb">Фото</div>
           <div>№</div>
           <div>Тип автомобиля</div>
           <div>Тип</div>
@@ -140,6 +168,7 @@ export default function CarsManagement() {
           <div>Модель</div>
           <div>Объём</div>
           <div>Год</div>
+          <div>Поколение</div>
           <div className="actions">Действия</div>
         </div>
 
@@ -159,8 +188,16 @@ export default function CarsManagement() {
               .filter((item) => item.rowType === "car")
               .length +
             1;
+          const thumb = carGenThumbUrl(car);
           return (
           <div key={car._id} className="cars-table-row">
+            <div className="cars-col-thumb">
+              {thumb ? (
+                <img src={thumb} alt="" className="cars-thumb-img" loading="lazy" />
+              ) : (
+                <span className="cars-thumb-placeholder">—</span>
+              )}
+            </div>
             <div>{carNumber}</div>
             <div>{car.type || "-"}</div>
             <div>{car.typ || "-"}</div>
@@ -168,6 +205,7 @@ export default function CarsManagement() {
             <div>{car.model || "-"}</div>
             <div>{car.volume || car.engineVolume || "-"}</div>
             <div>{car.year || "-"}</div>
+            <div className="cars-col-generation">{carGenRowSummary(car)}</div>
 
             <div className="actions">
               <button

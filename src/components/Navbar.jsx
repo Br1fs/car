@@ -18,6 +18,8 @@ export default function Navbar() {
 
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  const canAccessCMK = user?.role === "admin";
+  const canAccessCars = user?.role === "admin" || user?.role === "admin/user";
 
   const handleLogout = () => {
     clearActivityTimestamp();
@@ -46,6 +48,7 @@ export default function Navbar() {
         { to: "/decision", label: "Решение", icon: "✅" },
         { to: "/dogovor", label: "Договор", icon: "🖋" },
         { to: "/declaration", label: "Кнопка", icon: "📎" },
+        ...(canAccessCMK ? [{ to: "/cmk", label: "CMK", icon: "📚" }] : []),
         { to: "/work-notes", label: "Рабочая запись", icon: "🗒" },
         { to: "/mail-board", label: "Карточки", icon: "📮" },
       ],
@@ -53,7 +56,7 @@ export default function Navbar() {
     {
       title: "Система",
       items: [
-        { to: "/cars-management", label: "База машин", icon: "🚗" },
+        ...(canAccessCars ? [{ to: "/cars-management", label: "База машин", icon: "🚗" }] : []),
         { to: "/settings", label: "Настройки", icon: "⚙️" },
         ...(user?.role === "admin"
           ? [{ to: "/activity-logs", label: "Контроль действий", icon: "🕒" }]

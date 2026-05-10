@@ -20,6 +20,7 @@ const Zayavki = lazy(() => import("./pages/Zayavki"));
 const WorkNotes = lazy(() => import("./pages/WorkNotes"));
 const Declaration = lazy(() => import("./pages/Declaration"));
 const EPTS = lazy(() => import("./pages/EPTS"));
+const CMK = lazy(() => import("./pages/CMK"));
 const ActivityLogs = lazy(() => import("./pages/ActivityLogs"));
 const MailBoard = lazy(() => import("./pages/MailBoard"));
 const Register = lazy(() => import("./pages/Register"));
@@ -93,7 +94,7 @@ export default function App() {
             <Route
               path="/cars-management"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["admin", "admin/user"]}>
                   <CarsManagement />
                 </ProtectedRoute>
               }
@@ -101,7 +102,7 @@ export default function App() {
             <Route
               path="/cars/add"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["admin", "admin/user"]}>
                   <AddCar />
                 </ProtectedRoute>
               }
@@ -109,7 +110,7 @@ export default function App() {
             <Route
               path="/cars/:id"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["admin", "admin/user"]}>
                   <AddCar />
                 </ProtectedRoute>
               }
@@ -194,6 +195,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <EPTS />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/cmk"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <CMK />
                 </ProtectedRoute>
               }
             />

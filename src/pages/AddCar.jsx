@@ -9,6 +9,11 @@ const characteristics = [
   { label: "Тип", key: "typ" },
   { label: "Марка", key: "brand" },
   { label: "Коммерческое наименование", key: "model" },
+  { label: "Поколение: подпись (опционально)", key: "generationLabel" },
+  { label: "Поколение: год от", key: "generationYearFrom" },
+  { label: "Поколение: год до (можно н.в.)", key: "generationYearTo" },
+  { label: "Поколение: шасси / индекс (E39, F10…)", key: "generationChassis" },
+  { label: "Поколение: рестайлинг (да / нет)", key: "generationFacelift" },
   { label: "Год выпуска", key: "year" },
   { label: "Объём", key: "volume" },
   { label: "Категория", key: "category" },
@@ -74,9 +79,19 @@ const characteristics = [
   { label: "Доп. оборудование", key: "extraEquipment" },
 ];
 
+const generationImagePreviewSrc = (raw, apiBase) => {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("/")) return `${apiBase}${s}`;
+  return `${apiBase}/uploads/${s}`;
+};
+
 export default function AddCar() {
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(false);
+  const [uploadingGenCover, setUploadingGenCover] = useState(false);
+  const [genCoverErr, setGenCoverErr] = useState("");
 
   const navigate = useNavigate();
   const { id } = useParams();
@@ -131,6 +146,13 @@ export default function AddCar() {
       cleanedValue = value.replace(/[^\d]/g, "");
     }
 
+    if (name === "generationYearFrom") {
+      cleanedValue = value.replace(/[^\d]/g, "");
+    }
+    if (name === "generationYearTo") {
+      cleanedValue = String(value).slice(0, 40);
+    }
+
     if (name === "volume") {
       cleanedValue = value.replace(",", ".").replace(/[^\d.]/g, "");
     }
@@ -147,6 +169,8 @@ export default function AddCar() {
         ...form,
         year: cleanInt(form.year),
         volume: cleanFloat(form.volume),
+        generationYearFrom: cleanInt(form.generationYearFrom),
+        generationYearTo: String(form.generationYearTo ?? "").trim().slice(0, 40) || null,
       };
 
       if (id) {
@@ -160,6 +184,29 @@ export default function AddCar() {
     } catch (err) {
       console.error(err);
       alert("Ошибка сохранения");
+    }
+  };
+
+  const handleGenerationCoverFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setGenCoverErr("");
+    setUploadingGenCover(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await axios.post(`${API_URL}/api/cars/upload-generation-cover`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const path = res.data?.path;
+      if (!path) throw new Error("Нет пути в ответе");
+      setForm((prev) => ({ ...prev, generationImage: path }));
+    } catch (err) {
+      console.error(err);
+      setGenCoverErr(err.response?.data?.message || err.message || "Не удалось загрузить");
+    } finally {
+      setUploadingGenCover(false);
     }
   };
 
@@ -206,6 +253,44 @@ export default function AddCar() {
                   />
                 </div>
               ))}
+
+              <div className="cars-form-row cars-generation-cover-row">
+                <label>Обложка поколения (фото с компьютера)</label>
+                <div className="cars-generation-cover-box">
+                  {generationImagePreviewSrc(form.generationImage, API_URL) ? (
+                    <img
+                      src={generationImagePreviewSrc(form.generationImage, API_URL)}
+                      alt="Обложка поколения"
+                      className="cars-generation-cover-preview"
+                    />
+                  ) : (
+                    <div className="cars-generation-cover-placeholder">Нет фото</div>
+                  )}
+                  <label className="cars-generation-cover-upload">
+                    {uploadingGenCover ? "Загрузка…" : "Выбрать файл"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      disabled={uploadingGenCover}
+                      onChange={handleGenerationCoverFile}
+                    />
+                  </label>
+                  {form.generationImage ? (
+                    <button
+                      type="button"
+                      className="cars-generation-cover-remove"
+                      onClick={() => setForm((prev) => ({ ...prev, generationImage: "" }))}
+                    >
+                      Убрать обложку
+                    </button>
+                  ) : null}
+                  {genCoverErr ? <div className="cars-generation-cover-error">{genCoverErr}</div> : null}
+                  <p className="cars-generation-cover-hint">
+                    JPEG, PNG, GIF или WebP, до 4 МБ. Файл лежит на диске сервера; в базе сохраняется только путь к
+                    файлу (не «забивает оперативную память» — растёт место на диске, как у любого каталога с фото).
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="add-car-bottom-bar">
