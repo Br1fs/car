@@ -992,3 +992,282 @@ html[data-theme="dark"] .cars-thumb-img {
 html[data-theme="dark"] .cars-col-generation {
   color: #e2e8f0;
 }
+
+/* --- Фото заявки: миниатюры, галерея, меню ⋯ --- */
+.app-photo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.app-photo-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-photo-thumb-btn {
+  border: 1px solid #cbd5e1;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.app-photo-thumb-btn:hover {
+  border-color: #2563eb;
+}
+
+.app-photo-thumb {
+  display: block;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+}
+
+.app-photo-thumb-placeholder {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.app-photo-name-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-photo-name-btn:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.app-photo-name {
+  font-size: 14px;
+  color: #0f172a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.app-photo-name-btn:not(:disabled):hover .app-photo-name {
+  color: #2563eb;
+}
+
+.app-photo-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.app-photo-menu-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.2;
+  color: #334155;
+}
+
+.app-photo-menu-btn:hover {
+  background: #f8fafc;
+}
+
+.app-photo-file-menu {
+  position: absolute;
+  top: 100%;
+  right: 36px;
+  margin-top: 4px;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-photo-file-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.app-photo-file-menu button:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.app-photo-file-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.app-photo-gallery {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.app-photo-gallery-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.app-photo-gallery-title {
+  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-photo-gallery-close {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.app-photo-gallery-main-wrap {
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  max-height: 420px;
+}
+
+.app-photo-gallery-main {
+  max-width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  display: block;
+}
+
+.app-photo-gallery-thumbs {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-photo-gallery-thumb {
+  border: 2px solid transparent;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #e2e8f0;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+}
+
+.app-photo-gallery-thumb.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #93c5fd;
+}
+
+.app-photo-gallery-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+html[data-theme="dark"] .app-photo-gallery {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .app-photo-gallery-title,
+html[data-theme="dark"] .app-photo-name {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .app-photo-thumb-btn,
+html[data-theme="dark"] .app-photo-menu-btn,
+html[data-theme="dark"] .app-photo-gallery-close {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .app-photo-file-menu {
+  background: #1e293b;
+  border-color: #475569;
+}
+
+html[data-theme="dark"] .app-photo-file-menu button {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .app-photo-gallery-main-wrap {
+  background: #020617;
+}
+
+body.dark .app-photo-gallery {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+body.dark .app-photo-gallery-title,
+body.dark .app-photo-name {
+  color: #f1f5f9;
+}
+
+body.dark .app-photo-thumb-btn,
+body.dark .app-photo-menu-btn,
+body.dark .app-photo-gallery-close {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+body.dark .app-photo-file-menu {
+  background: #1e293b;
+  border-color: #475569;
+}
+
+body.dark .app-photo-file-menu button {
+  color: #f1f5f9;
+}
+
+body.dark .app-photo-gallery-main-wrap {
+  background: #020617;
+}

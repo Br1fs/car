@@ -62,7 +62,7 @@ const docFieldConfigs = [
   { key: "ownershipDoc", label: "о владении ТС" },
   { key: "techDescription", label: "тех описание" },
   { key: "actDoc", label: "АКТ" },
-  { key: "other1", label: "Прочее 1" },
+  { key: "other1", label: "шильдик" },
   { key: "other2", label: "Прочее 2" },
   { key: "other3", label: "Прочее 3" },
   { key: "other4", label: "Прочее 4" },
@@ -128,6 +128,31 @@ const isVinChecksumValid = (vin) => {
   if (!expected) return false;
   return normalized[8] === expected;
 };
+
+/** Распространённые WMI (приоритет при выборе среди нескольких «валидных по checksum» строк). */
+const WELL_KNOWN_VIN_WMI_PREFIXES = [
+  "4T1",
+  "JTD",
+  "JT2",
+  "JT3",
+  "JT4",
+  "5TD",
+  "2T1",
+  "LS4",
+  "LS5",
+  "LSG",
+  "LSV",
+  "LFV",
+  "LGB",
+  "LFP",
+  "LZW",
+  "LVV",
+  "LVS",
+  "LVG",
+  "LHG",
+  "LFM",
+  "LDC",
+];
 const withMutedTesseractParamWarnings = async (work) => {
   const originalWarn = console.warn;
   console.warn = (...args) => {
@@ -138,6 +163,55 @@ const withMutedTesseractParamWarnings = async (work) => {
   try {
     return await work();
   } finally {
+    console.warn = originalWarn;
+  }
+};
+
+/** Tesseract WASM пишет в stderr строки вида "Image too small..." — это не ошибки приложения. */
+const isTesseractWasmNoiseMessage = (...args) => {
+  const blob = args
+    .map((a) => {
+      if (typeof a === "string") return a;
+      if (a instanceof Error) return `${a.message}\n${a.stack || ""}`;
+      try {
+        return JSON.stringify(a);
+      } catch {
+        return String(a);
+      }
+    })
+    .join("\n");
+  return (
+    /Image too small to scale/i.test(blob) ||
+    /Line cannot be recognized/i.test(blob) ||
+    /Estimating resolution as/i.test(blob)
+  );
+};
+
+/** Worker с патчем console внутри Web Worker (шум WASM из tesseract-core). */
+const TESSERACT_SILENT_WORKER_PATH = "/tesseract-silent-prelude-worker.js";
+
+const withMutedTesseractWasmNoise = async (work, { lingerMs = 220 } = {}) => {
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  console.error = (...args) => {
+    if (isTesseractWasmNoiseMessage(...args)) return;
+    originalError(...args);
+  };
+  console.warn = (...args) => {
+    if (isTesseractWasmNoiseMessage(...args)) return;
+    const first = String(args?.[0] || "");
+    if (first.includes("Parameter not found:")) return;
+    originalWarn(...args);
+  };
+  try {
+    return await work();
+  } finally {
+    if (lingerMs > 0) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, lingerMs);
+      });
+    }
+    console.error = originalError;
     console.warn = originalWarn;
   }
 };
@@ -157,29 +231,394 @@ const scoreVinCandidate = (vin) => {
   if (normalized.length !== 17) return -999;
   if (!isVinValid(normalized)) return -999;
   const checksumOk = isVinChecksumValid(normalized);
-  const wmiPrefixes = [
-    "4T1", "JTD", "JT2", "JT3", "JT4", "5TD", "2T1",
-    "LS4", "LSG", "LSV", "LFV", "LGB", "LFP", "LZW",
-  ];
   let score = 0;
+  const knownWmi = WELL_KNOWN_VIN_WMI_PREFIXES.some((prefix) => normalized.startsWith(prefix));
   if (checksumOk) score += 20;
-  if (/^\d/.test(normalized)) score += 2;
+  if (/^\d/.test(normalized)) score += knownWmi ? 1 : -4;
   if (/[A-Z]/.test(normalized) && /\d/.test(normalized)) score += 2;
-  if (wmiPrefixes.some((prefix) => normalized.startsWith(prefix))) score += 8;
+  if (knownWmi) score += 16;
+  else score -= 6;
   const digitCount = (normalized.match(/\d/g) || []).length;
   if (digitCount >= 6 && digitCount <= 11) score += 4;
   else score -= 4;
   if (/(.)\1\1/.test(normalized)) score -= 6;
+  // Типичный «галлюцинированный» хвост после ошибочного чтения шильдика
+  if (/1900|9000|0000/.test(normalized)) score -= 22;
+  if (/00[A-Z]{2}$/.test(normalized)) score -= 20;
   return score;
 };
-const pickBestVinValue = (values = []) => {
-  const unique = [...new Set(values.map((v) => normalizeVinValue(v)).filter(Boolean))];
+
+const mergeVinOcrCompact = (mergedRaw) =>
+  String(mergedRaw || "")
+    .toUpperCase()
+    .replace(/[ОО]/g, "0")
+    .replace(/[І]/g, "1")
+    .replace(/[|]/g, "1")
+    .replace(/[^A-Z0-9]/g, "");
+
+/** Макс. совпадение символов кандидата с каким‑либо 17‑символьным окном в объединённом OCR. */
+const bestVinSlidingWindowMatch = (vin, compact) => {
+  const v = normalizeVinValue(vin);
+  if (v.length !== 17 || !compact || compact.length < 17) return 0;
+  let best = 0;
+  for (let i = 0; i <= compact.length - 17; i += 1) {
+    let m = 0;
+    for (let j = 0; j < 17; j += 1) {
+      if (compact[i + j] === v[j]) m += 1;
+    }
+    if (m > best) best = m;
+  }
+  return best;
+};
+
+const vinStartsWithKnownWmi = (vin) =>
+  WELL_KNOWN_VIN_WMI_PREFIXES.some((prefix) => normalizeVinValue(vin).startsWith(prefix));
+
+const collectChecksumValidVinWindows = (mergedRaw) => {
+  const compact = mergeVinOcrCompact(mergedRaw);
+  if (compact.length < 17) return [];
+  const found = [];
+  for (let i = 0; i <= compact.length - 17; i += 1) {
+    const slice = normalizeVinValue(compact.slice(i, i + 17));
+    if (slice.length !== 17 || !isVinValid(slice)) continue;
+    if (!isVinChecksumValid(slice)) continue;
+    if (!vinStartsWithKnownWmi(slice)) continue;
+    found.push(slice);
+  }
+  return found;
+};
+
+/** Типичные путаницы OCR: буква вместо цифры (конец VIN / серийный номер). */
+const VIN_OCR_LETTER_AS_DIGIT = {
+  B: "8",
+  F: "9",
+  G: "6",
+  I: "1",
+  O: "0",
+  Q: "0",
+  Z: "2",
+  D: "0",
+};
+
+const expandVinOneLetterDigitFix = (vin) => {
+  const v = normalizeVinValue(vin);
+  if (v.length !== 17) return [];
+  const out = [];
+  for (let i = 10; i < 17; i += 1) {
+    const ch = v[i];
+    const rep = VIN_OCR_LETTER_AS_DIGIT[ch];
+    if (!rep || rep === ch) continue;
+    const next = v.slice(0, i) + rep + v.slice(i + 1);
+    if (isVinValid(next)) out.push(next);
+  }
+  return out;
+};
+
+/** Несколько подряд замен (BF→89 и т.д.), пока не сойдётся checksum. */
+const repairVinLetterDigitOcrBfs = (vin, { maxNodes = 220 } = {}) => {
+  const start = normalizeVinValue(vin);
+  if (start.length !== 17 || !isVinValid(start)) return "";
+  if (isVinChecksumValid(start)) return start;
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length && seen.size < maxNodes) {
+    const cur = queue.shift();
+    for (const nxt of expandVinOneLetterDigitFix(cur)) {
+      if (seen.has(nxt)) continue;
+      seen.add(nxt);
+      if (isVinChecksumValid(nxt)) return nxt;
+      queue.push(nxt);
+    }
+  }
+  return "";
+};
+
+/** Частая путаница на шильдике Changan: R754 вместо E7SD; R вместо E после LS4ASE2. */
+const applyChanganPlaqueOcrHeuristics = (vin, compact) => {
+  let v = normalizeVinValue(vin);
+  if (v.length !== 17 || !isVinValid(v)) return v;
+  if (
+    v.startsWith("LS4ASE2R754") &&
+    (compact.includes("LS4ASE2E7SD") ||
+      compact.includes("LS4ASE2E1SD") ||
+      compact.includes("E7SD141") ||
+      compact.includes("E1SD141"))
+  ) {
+    const repl =
+      compact.includes("LS4ASE2E1SD") || compact.includes("E1SD141")
+        ? "LS4ASE2E1SD"
+        : "LS4ASE2E7SD";
+    v = normalizeVinValue(v.replace(/^LS4ASE2R754/, repl));
+  } else if (
+    v.startsWith("LS4ASE2R7") &&
+    /LS4ASE2E[17]/i.test(compact) &&
+    !/^LS4ASE2E[17]/i.test(v)
+  ) {
+    v = normalizeVinValue(`${v.slice(0, 7)}E${v.slice(8)}`);
+  }
+  return v;
+};
+
+/** Префиксы Changan SC6485: на шильдике часто «E1SD», OCR путает с «E7SD». */
+const CHANGAN_LS4_ASE2_HEADS = ["LS4ASE2E7SD", "LS4ASE2E1SD"];
+const isChanganLs4Ase2FixedHeadVin = (vin) =>
+  CHANGAN_LS4_ASE2_HEADS.some((h) => normalizeVinValue(vin).startsWith(h));
+
+/** Достаёт VIN вида LS4ASE2E[17]SD + 6 символов из «компактного» OCR (разные серийные номера). */
+const extractVinFromLs4Ase2E7SdInCompact = (compact) => {
+  if (!compact) return [];
+  const out = [];
+  const pushIfOk = (assembled) => {
+    const v = normalizeVinValue(assembled);
+    if (v.length !== 17 || !isVinValid(v) || !isVinChecksumValid(v)) return;
+    out.push(v);
+  };
+  let m;
+  const reLs = /LS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = reLs.exec(compact)) !== null) {
+    pushIfOk(`LS4ASE2E${m[1]}SD${m[2]}`);
+  }
+  const reFs = /FS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = reFs.exec(compact)) !== null) {
+    pushIfOk(`LS4ASE2E${m[1]}SD${m[2]}`);
+  }
+  return [...new Set(out)];
+};
+
+/** Типичные ошибки OCR в первых трёх символах вместо LS4 (шильдик Changan). */
+const CHANGAN_VIN_LEAD_THREE_FIX = new Map([
+  ["1S4", "LS4"],
+  ["FS4", "LS4"],
+  ["F54", "LS4"],
+  ["L54", "LS4"],
+  ["5S4", "LS4"],
+  ["IS4", "LS4"],
+  ["JS4", "LS4"],
+  ["0S4", "LS4"],
+  ["OS4", "LS4"],
+  ["TS4", "LS4"],
+]);
+
+const withLs4LeadIfPossible = (vin17) => {
+  const v = normalizeVinValue(vin17);
+  if (v.length !== 17 || !isVinValid(v)) return "";
+  if (v.startsWith("LS4")) return v;
+  const p = CHANGAN_VIN_LEAD_THREE_FIX.get(v.slice(0, 3));
+  if (!p) return "";
+  return normalizeVinValue(`${p}${v.slice(3)}`);
+};
+
+/** Все 17-символьные окна: исправление префикса + BFS по хвосту. */
+const recoverVinFromSlidingWindows = (mergedRaw) => {
+  const compact = mergeVinOcrCompact(mergedRaw);
+  if (compact.length < 17) return [];
+  const found = new Set();
+  for (let i = 0; i <= compact.length - 17; i += 1) {
+    const slice = compact.slice(i, i + 17);
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(slice)) continue;
+    let patched = withLs4LeadIfPossible(slice);
+    if (!patched || !patched.startsWith("LS4")) continue;
+    patched = normalizeVinValue(applyChanganPlaqueOcrHeuristics(patched, compact));
+    if (!isVinValid(patched)) continue;
+    if (isVinChecksumValid(patched)) found.add(patched);
+    else {
+      const r = repairVinLetterDigitOcrBfs(patched);
+      if (r) found.add(r);
+    }
+  }
+  return [...found];
+};
+
+/** Если «LS4» потерян, но есть стабильный фрагмент ASE2E[17]SD + 6 символов серии. */
+const extractVinFromAse2E7SdAnchor = (mergedRaw) => {
+  const compact = mergeVinOcrCompact(mergedRaw);
+  if (!compact) return [];
+  const out = [];
+  const re = /ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+  let m;
+  while ((m = re.exec(compact)) !== null) {
+    const v = normalizeVinValue(`LS4ASE2E${m[1]}SD${m[2]}`);
+    if (v.length === 17 && isVinValid(v) && isVinChecksumValid(v)) out.push(v);
+  }
+  return [...new Set(out)];
+};
+
+/**
+ * Когда OCR рвёт строку VIN: перебираем все 6-символьные хвосты + якоря E[17]SD… / 4ASE2E[17]SD… / S4ASE2E[17]SD…
+ * (фиксированный префикс Changan до серийного номера).
+ */
+const recoverVinLs4Ase2E7sdByTailScan = (mergedRaw) => {
+  const compact = mergeVinOcrCompact(mergedRaw);
+  if (!compact || compact.length < 6) return [];
+  const found = new Set();
+  const tryAdd = (assembled) => {
+    const v = normalizeVinValue(assembled);
+    if (v.length !== 17 || !isVinValid(v) || !isVinChecksumValid(v)) return;
+    found.add(v);
+  };
+  for (let i = 0; i <= compact.length - 6; i += 1) {
+    const tail = compact.slice(i, i + 6);
+    if (!/^[A-HJ-NPR-Z0-9]{6}$/.test(tail)) continue;
+    for (const head of CHANGAN_LS4_ASE2_HEADS) tryAdd(`${head}${tail}`);
+  }
+  let m;
+  const reE = /E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = reE.exec(compact)) !== null) {
+    tryAdd(`LS4ASE2E${m[1]}SD${m[2]}`);
+  }
+  const re4 = /4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = re4.exec(compact)) !== null) {
+    tryAdd(`LS${m[0]}`);
+  }
+  const reS4 = /S4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = reS4.exec(compact)) !== null) {
+    tryAdd(`L${m[0]}`);
+  }
+  return [...found];
+};
+
+const collectLs4RoughVinWindows = (mergedRaw) => {
+  const compact = mergeVinOcrCompact(mergedRaw);
+  if (compact.length < 17) return [];
+  const found = [];
+  for (let i = 0; i <= compact.length - 17; i += 1) {
+    const slice = normalizeVinValue(compact.slice(i, i + 17));
+    if (slice.length !== 17 || !isVinValid(slice)) continue;
+    if (!slice.startsWith("LS4")) continue;
+    found.push(slice);
+  }
+  return found;
+};
+
+const vinOcrHallucinationPenalty = (vin) => {
+  const v = normalizeVinValue(vin);
+  let p = 0;
+  if (/1900|9000|0000/.test(v)) p += 180;
+  if (/00[A-Z]{2}$/.test(v)) p += 120;
+  if (/^LS4ASE2R754/.test(v)) p += 160;
+  return p;
+};
+
+/** 6 цифр как «YYMMDD» (напр. 251017 = 2025-10-17 с шильдика) — не серийный номер VIN. */
+const isSixDigitYymmddLikeTail = (six) => {
+  if (!/^\d{6}$/.test(six)) return false;
+  const yy = parseInt(six.slice(0, 2), 10);
+  const mm = parseInt(six.slice(2, 4), 10);
+  const dd = parseInt(six.slice(4, 6), 10);
+  if (yy < 18 || yy > 35) return false;
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return false;
+  if (mm === 2 && dd > 29) return false;
+  if ([4, 6, 9, 11].includes(mm) && dd > 30) return false;
+  return true;
+};
+
+/** На шильдике рядом с VIN печатают «SC6485…» / «JL473…» — OCR вшивает фрагменты в хвост VIN. */
+const vinChanganPlateRankingAdjust = (vin, compact) => {
+  const v = normalizeVinValue(vin);
+  let bonus = 0;
+  let penalty = 0;
+  if (v.length !== 17 || !isChanganLs4Ase2FixedHeadVin(v)) return { bonus, penalty };
+  const tail = v.slice(11);
+  const c = String(compact || "").toUpperCase();
+  if (tail.length === 6 && c.includes(tail)) bonus += 92;
+  if (v.startsWith("LS4ASE2E1SD") && /ASE2E1SD|E1SD14|LS4ASE2E1SD/i.test(c)) bonus += 48;
+  if (v.startsWith("LS4ASE2E7SD") && /ASE2E1SD|E1SD14/i.test(c) && !/ASE2E7SD|LS4ASE2E7SD/.test(c)) penalty += 95;
+  const dateLikeDigitTail = /^\d{6}$/.test(tail) && isSixDigitYymmddLikeTail(tail);
+  if (/^\d{6}$/.test(tail) && !dateLikeDigitTail) bonus += 52;
+  else if (!/^\d{6}$/.test(tail)) {
+    const digitCount = (tail.match(/\d/g) || []).length;
+    if (digitCount >= 5) bonus += 26;
+    else if (digitCount >= 4) bonus += 10;
+  }
+  if (dateLikeDigitTail) penalty += 230;
+  if (/(JL473|473ZQ|473ZQD)/i.test(c)) {
+    if (/EJL473|JL473|J473|L473|I473/i.test(tail)) penalty += 220;
+    if (/^473[A-Z0-9]{3}$/i.test(tail)) penalty += 200;
+    if (/^[A-Z]{2,}473$/i.test(tail)) penalty += 180;
+  }
+  if (/(SC6485|6485AEA6|SC648)/i.test(c)) {
+    if (/6485/.test(tail)) penalty += 240;
+  }
+  if (/6485/.test(tail) && /^[A-Z]/.test(tail)) penalty += 170;
+  if (/C6485|64854|6485[A-Z]/i.test(tail)) penalty += 90;
+  if (/FS4|ASSE|SEHB|SC64854/i.test(tail)) penalty += 130;
+  return { bonus, penalty };
+};
+
+const pickBestVinValue = (values = [], mergedOcrHint = "") => {
+  const compact = mergeVinOcrCompact(mergedOcrHint);
+  const fromLs4Sd = extractVinFromLs4Ase2E7SdInCompact(compact);
+  const fromAnchor = extractVinFromAse2E7SdAnchor(mergedOcrHint);
+  const fromTailScan = recoverVinLs4Ase2E7sdByTailScan(mergedOcrHint);
+  const fromSliding = recoverVinFromSlidingWindows(mergedOcrHint);
+  const fromWindows = collectChecksumValidVinWindows(mergedOcrHint);
+  const roughLs4 = collectLs4RoughVinWindows(mergedOcrHint);
+  const rawSet = new Set([
+    ...values.map((v) => normalizeVinValue(v)).filter(Boolean),
+    ...fromWindows,
+    ...roughLs4,
+    ...fromLs4Sd,
+    ...fromAnchor,
+    ...fromTailScan,
+    ...fromSliding,
+  ]);
+  const repaired = new Set();
+  rawSet.forEach((v) => {
+    if (!v) return;
+    const heur = applyChanganPlaqueOcrHeuristics(v, compact);
+    const afterHeur = normalizeVinValue(heur);
+    if (!afterHeur || !vinStartsWithKnownWmi(afterHeur)) return;
+    if (isVinChecksumValid(afterHeur)) {
+      repaired.add(afterHeur);
+      return;
+    }
+    const fixed = repairVinLetterDigitOcrBfs(afterHeur);
+    if (fixed) repaired.add(fixed);
+  });
+  let unique = [...repaired];
+  const wmiPreferred = unique.filter((v) => vinStartsWithKnownWmi(v));
+  if (wmiPreferred.length) unique = wmiPreferred;
   if (!unique.length) return "";
+  const changanHint =
+    /LS4|1S4|FS4|F54|L54|5S4|ASE2E[17]SD|E[17]SD|SC6485/i.test(compact) ||
+    unique.some((v) => typeof v === "string" && v.startsWith("LS4"));
   const ranked = unique
-    .map((value) => ({ value, score: scoreVinCandidate(value), checksum: isVinChecksumValid(value) }))
-    .sort((a, b) => b.score - a.score);
+    .map((value) => {
+      const checksum = isVinChecksumValid(value);
+      const windowMatch = bestVinSlidingWindowMatch(value, compact);
+      const { bonus: plateBonus, penalty: platePenalty } = vinChanganPlateRankingAdjust(value, compact);
+      const evidence =
+        (isChanganLs4Ase2FixedHeadVin(value) && /LS4ASE2E[17]SD[A-Z0-9]{6}/i.test(compact) ? 70 : 0) +
+        (isChanganLs4Ase2FixedHeadVin(value) && /ASE2E[17]SD[A-Z0-9]{6}/i.test(compact) ? 55 : 0) +
+        (compact.includes("LS4ASE2E") && /^LS4ASE2E[17]/.test(value) ? 40 : 0) +
+        (changanHint && value.startsWith("LS4") ? 30 : 0);
+      const ls4MismatchPenalty = changanHint && !value.startsWith("LS4") ? 420 : 0;
+      const score =
+        scoreVinCandidate(value) +
+        5 * windowMatch +
+        (compact.includes(value) ? 28 : 0) +
+        evidence +
+        plateBonus -
+        platePenalty -
+        vinOcrHallucinationPenalty(value) -
+        ls4MismatchPenalty;
+      return { value, score, checksum, windowMatch };
+    })
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.windowMatch !== a.windowMatch) return b.windowMatch - a.windowMatch;
+      const tailDigits = (x) => ((x.value || "").slice(11).match(/\d/g) || []).length;
+      if (tailDigits(b) !== tailDigits(a)) return tailDigits(b) - tailDigits(a);
+      if (a.value !== b.value) return a.value.localeCompare(b.value);
+      return 0;
+    });
   const checksumPool = ranked.filter((item) => item.checksum);
-  return (checksumPool[0] || ranked[0] || {}).value || "";
+  const checksumWmi = checksumPool.filter((item) => vinStartsWithKnownWmi(item.value));
+  const checksumWmiLs4 =
+    changanHint && checksumWmi.some((item) => item.value.startsWith("LS4"))
+      ? checksumWmi.filter((item) => item.value.startsWith("LS4"))
+      : checksumWmi;
+  return (checksumWmiLs4[0] || checksumWmi[0] || checksumPool[0] || ranked[0] || {}).value || "";
 };
 
 const fuelOptions = ["Бензин", "Дизель", "Электро"];
@@ -427,6 +866,12 @@ const { id } = useParams();
   const [ocrFieldDebug, setOcrFieldDebug] = useState({});
   const ocrDocumentRef = useRef(null);
   const vinCandidatesDebugRef = useRef("");
+  const [mailCards, setMailCards] = useState([]);
+  const [mailCardsLoading, setMailCardsLoading] = useState(false);
+  const [mailCardsError, setMailCardsError] = useState("");
+  const [selectedMailCardId, setSelectedMailCardId] = useState("");
+  const [selectedAttachmentByKey, setSelectedAttachmentByKey] = useState({});
+  const [importStatusByKey, setImportStatusByKey] = useState({});
 
   const effectiveFuelType = isN3Category(form.templateCategory)
     ? "Дизель"
@@ -448,6 +893,28 @@ const { id } = useParams();
       }
     };
     loadCars();
+  }, []);
+
+  useEffect(() => {
+    const loadMailCards = async () => {
+      try {
+        setMailCardsLoading(true);
+        setMailCardsError("");
+        const res = await axios.get(`${API_URL}/api/mail-board`);
+        const allCards = Array.isArray(res.data?.cards) ? res.data.cards : [];
+        const cardsWithAttachments = allCards.filter((card) => Array.isArray(card.attachments) && card.attachments.length > 0);
+        setMailCards(cardsWithAttachments);
+        if (!selectedMailCardId && cardsWithAttachments.length > 0) {
+          setSelectedMailCardId(String(cardsWithAttachments[0]._id));
+        }
+      } catch (err) {
+        console.error("Ошибка загрузки карточек почты:", err);
+        setMailCardsError("Не удалось загрузить карточки с вложениями");
+      } finally {
+        setMailCardsLoading(false);
+      }
+    };
+    loadMailCards();
   }, []);
 
   useEffect(() => {
@@ -946,7 +1413,203 @@ const { id } = useParams();
     if (key === "actDoc") {
       void autofillExtraEquipmentFromAct(primaryFile);
     }
+    if (key === "other1") {
+      void runOcrForFile("vin", primaryFile);
+    }
   };
+
+  const applySingleDocFile = (key, file) => {
+    if (!key || !file) return;
+    setFiles((prev) => ({ ...prev, [key]: file }));
+    setFilesUploaded((prev) => [
+      ...prev.filter((item) => item.key !== key),
+      {
+        key,
+        savedName: file.name,
+        originalName: file.name,
+        isExisting: false,
+        index: 0,
+      },
+    ]);
+    setExistingFiles((prev) => prev.filter((item) => item.key !== key));
+    setForm((prev) => ({
+      ...prev,
+      files: {
+        ...(prev.files || {}),
+        [key]: [],
+      },
+    }));
+    if (key === "actDoc") {
+      void autofillExtraEquipmentFromAct(file);
+    }
+  };
+
+  const removeExistingDoc = (key, fileToRemove) => {
+    if (!key || !fileToRemove) return;
+    const targetSaved = String(fileToRemove.savedName || "");
+    setExistingFiles((prev) =>
+      prev.filter((item) => !(item.key === key && String(item.savedName || "") === targetSaved))
+    );
+    setForm((prev) => {
+      const current = Array.isArray(prev.files?.[key]) ? prev.files[key] : [];
+      const nextArr = current.filter((entry) => {
+        const saved = getStoredFileNameSafe(entry);
+        return String(saved || "") !== targetSaved;
+      });
+      return {
+        ...prev,
+        files: {
+          ...(prev.files || {}),
+          [key]: nextArr,
+        },
+      };
+    });
+  };
+
+  const removeUploadedDoc = (key) => {
+    if (!key) return;
+    setFilesUploaded((prev) => prev.filter((item) => item.key !== key));
+    setFiles((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const removeUploadedPhoto = (fileEntry) => {
+    if (!fileEntry) return;
+    const targetName = String(fileEntry.savedName || fileEntry.originalName || "");
+    setFilesUploaded((prev) => {
+      const idx = prev.findIndex(
+        (item) =>
+          item.key === "photos" &&
+          !item.isExisting &&
+          String(item.savedName || "") === String(fileEntry.savedName || "") &&
+          String(item.originalName || "") === String(fileEntry.originalName || "")
+      );
+      if (idx < 0) return prev;
+      const next = [...prev];
+      next.splice(idx, 1);
+      return next;
+    });
+    setFiles((prev) => {
+      const photos = [...(prev.photos || [])];
+      const i = photos.findIndex((f) => String(f?.name || "") === targetName);
+      if (i >= 0) photos.splice(i, 1);
+      return { ...prev, photos };
+    });
+  };
+
+  const removeExistingPhoto = (fileEntry) => {
+    if (!fileEntry) return;
+    const docKey = fileEntry.key || "photos";
+    removeExistingDoc(docKey, fileEntry);
+  };
+
+  const [newPhotoObjectUrlMap, setNewPhotoObjectUrlMap] = useState({});
+  const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
+  const [photoGalleryIndex, setPhotoGalleryIndex] = useState(0);
+  const [photoRowMenuKey, setPhotoRowMenuKey] = useState("");
+
+  const photosFingerprint = (files.photos || []).map((f) => `${f?.name || ""}:${f?.size || 0}`).join("|");
+
+  useEffect(() => {
+    const photos = files.photos || [];
+    const next = {};
+    const created = [];
+    photos.forEach((f) => {
+      if (!f || !isImageName(f.name)) return;
+      const u = URL.createObjectURL(f);
+      next[f.name] = u;
+      created.push(u);
+    });
+    setNewPhotoObjectUrlMap(next);
+    return () => {
+      created.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [photosFingerprint]);
+
+  const photoGalleryRows = useMemo(() => {
+    const rows = [];
+    existingFiles.forEach((file) => {
+      if (file.key !== "photos" && !isImageName(file.originalName || "")) return;
+      if (!file.savedName) return;
+      if (!isImageName(file.originalName || file.savedName || "")) return;
+      rows.push({ kind: "existing", entry: file });
+    });
+    filesUploaded.forEach((file) => {
+      if (file.key !== "photos" && !isImageName(file.originalName || "")) return;
+      if (file.isExisting) return;
+      if (!isImageName(file.originalName || file.savedName || "")) return;
+      const hasBlob = (files.photos || []).some((p) => p.name === file.savedName);
+      if (!hasBlob) return;
+      rows.push({ kind: "uploaded", entry: file });
+    });
+    return rows;
+  }, [existingFiles, filesUploaded, files.photos]);
+
+  const getPhotoRowKey = (row) => {
+    const e = row.entry;
+    return row.kind === "existing"
+      ? `ex-${e.key}-${e.savedName}-${e.index}`
+      : `up-${e.savedName}-${e.originalName}`;
+  };
+
+  const getPhotoRowHref = (row) => {
+    if (row.kind === "existing") {
+      return `${API_URL}/uploads/${row.entry.savedName}`;
+    }
+    return newPhotoObjectUrlMap[row.entry.savedName] || "";
+  };
+
+  const openPhotoInNewWindow = (row) => {
+    const href = getPhotoRowHref(row);
+    if (!href) return;
+    window.open(href, "_blank", "noopener,noreferrer");
+    setPhotoRowMenuKey("");
+  };
+
+  const downloadPhotoRow = (row) => {
+    const href = getPhotoRowHref(row);
+    if (!href) return;
+    const name = row.entry.originalName || row.entry.savedName || "photo";
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = name;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setPhotoRowMenuKey("");
+  };
+
+  const openPhotoGalleryAt = (rowKey) => {
+    const idx = photoGalleryRows.findIndex((r) => getPhotoRowKey(r) === rowKey);
+    if (idx < 0) return;
+    setPhotoGalleryIndex(idx);
+    setPhotoGalleryOpen(true);
+    setPhotoRowMenuKey("");
+  };
+
+  useEffect(() => {
+    if (!photoRowMenuKey) return undefined;
+    const onDocMouseDown = (e) => {
+      const root = e.target.closest?.(".app-photo-row-menu-root");
+      if (!root) setPhotoRowMenuKey("");
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [photoRowMenuKey]);
+
+  useEffect(() => {
+    if (!photoGalleryOpen) return;
+    if (photoGalleryRows.length === 0) {
+      setPhotoGalleryOpen(false);
+      return;
+    }
+    setPhotoGalleryIndex((i) => Math.min(Math.max(0, i), photoGalleryRows.length - 1));
+  }, [photoGalleryOpen, photoGalleryRows]);
 
   const extractActEquipmentValues = (rawText) => {
     const compact = String(rawText || "")
@@ -1095,6 +1758,9 @@ const { id } = useParams();
         "RIMS",
         "CAPACITY",
         "LOADING",
+        "SRS",
+        "AIRBAG",
+        "WARNING",
       ];
 
       const isNoisyVinCandidate = (value) => {
@@ -1105,10 +1771,6 @@ const { id } = useParams();
 
       const vinRe = /[A-HJ-NPR-Z0-9]{17}/g;
       const candidates = [];
-      const wmiPrefixes = [
-        "4T1", "JTD", "JT2", "JT3", "JT4", "5TD", "2T1",
-        "LS4", "LSG", "LSV", "LFV", "LGB", "LFP", "LZW",
-      ];
       const pushCandidate = (value, score) => {
         const normalized = normalizeVinValue(value);
         if (normalized.length !== 17) return;
@@ -1118,17 +1780,19 @@ const { id } = useParams();
         const hasDigits = /\d/.test(normalized);
         const startsWithDigit = /^\d/.test(normalized);
         const wmiLooksReal = /^[A-HJ-NPR-Z0-9]{3}/.test(normalized);
+        const knownWmi = WELL_KNOWN_VIN_WMI_PREFIXES.some((prefix) => normalized.startsWith(prefix));
         const checksumOk = isVinChecksumValid(normalized);
         const bonus =
           (hasLetters && hasDigits ? 2 : 0) +
-          (startsWithDigit ? 2 : 0) +
+          (startsWithDigit ? (knownWmi ? 1 : -3) : 0) +
           (wmiLooksReal ? 1 : 0) +
+          (knownWmi ? 14 : -6) +
           (checksumOk ? 12 : -8);
         candidates.push({ value: normalized, score: score + bonus, checksumOk });
 
         // OCR часто теряет первый символ VIN и добавляет мусор в конце.
         // Пробуем восстановить WMI: S4... -> LS4..., T1... -> 4T1... и т.п.
-        for (const wmi of wmiPrefixes) {
+        for (const wmi of WELL_KNOWN_VIN_WMI_PREFIXES) {
           const tail = wmi.slice(1);
           if (!normalized.startsWith(tail)) continue;
           const repaired = normalizeVinValue(`${wmi[0]}${normalized.slice(0, 16)}`);
@@ -1179,13 +1843,55 @@ const { id } = useParams();
         }
       }
 
+      const scanCompact = normalizeVinText(raw).replace(/\s+/g, "");
+      let lm;
+      const ls4SdTailRe = /LS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+      while ((lm = ls4SdTailRe.exec(scanCompact)) !== null) {
+        const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
+        if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+          pushCandidate(assembled, 92);
+        }
+      }
+      const fs4SdTailRe = /FS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+      while ((lm = fs4SdTailRe.exec(scanCompact)) !== null) {
+        const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
+        if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+          pushCandidate(assembled, 90);
+        }
+      }
+      const anchorTailRe = /ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+      while ((lm = anchorTailRe.exec(scanCompact)) !== null) {
+        const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
+        if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+          pushCandidate(assembled, 94);
+        }
+      }
+      recoverVinLs4Ase2E7sdByTailScan(raw).forEach((v) => pushCandidate(v, 86));
+      for (let si = 0; si <= scanCompact.length - 17; si += 1) {
+        const slice = scanCompact.slice(si, si + 17);
+        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(slice)) continue;
+        const patched = withLs4LeadIfPossible(slice);
+        if (!patched || !patched.startsWith("LS4")) continue;
+        pushCandidate(patched, 78);
+      }
+
       if (candidates.length) {
+        const rawCompact = normalizeVinText(raw).replace(/\s+/g, "");
         const ranked = [...candidates]
-          .map((item) => ({
-            ...item,
-            quality: scoreVinCandidate(item.value),
-            finalScore: item.score + scoreVinCandidate(item.value),
-          }))
+          .map((item) => {
+            const n = item.value;
+            const embedded =
+              rawCompact.includes(n) ||
+              (n.length >= 10 && rawCompact.includes(n.slice(0, 10))) ||
+              (n.length >= 8 && rawCompact.includes(n.slice(0, 8)));
+            const embeddedBonus = embedded ? 42 : 0;
+            const q = scoreVinCandidate(item.value);
+            return {
+              ...item,
+              quality: q,
+              finalScore: item.score + q + embeddedBonus,
+            };
+          })
           .sort((a, b) => b.finalScore - a.finalScore);
         vinCandidatesDebugRef.current = ranked
           .slice(0, 5)
@@ -1195,7 +1901,11 @@ const { id } = useParams();
           )
           .join(" ; ");
         const validChecksumCandidates = ranked.filter((item) => item.checksumOk);
-        const pool = validChecksumCandidates.length ? validChecksumCandidates : ranked;
+        let pool = validChecksumCandidates.length ? validChecksumCandidates : ranked;
+        if (/LS4/i.test(rawCompact)) {
+          const ls4Only = pool.filter((item) => item.value.startsWith("LS4"));
+          if (ls4Only.length) pool = ls4Only;
+        }
         return pool[0].value;
       }
 
@@ -1205,7 +1915,9 @@ const { id } = useParams();
       if (fallback.length) {
         vinCandidatesDebugRef.current = `fallback: ${fallback.slice(0, 3).join(", ")}`;
       }
-      return normalizeVinValue(fallback[0] || "");
+      const fb0 = normalizeVinValue(fallback[0] || "");
+      if (/LS4/i.test(compact) && fb0 && !fb0.startsWith("LS4")) return "";
+      return fb0;
     };
     const pickSegmentByLabels = (labelRegex, stopRegex) => {
       const m = raw.match(
@@ -1755,14 +2467,27 @@ const { id } = useParams();
 
   const createOcrWorkerSafe = async () => {
     const { createWorker } = await import("tesseract.js");
+    const ocrWorkerOptions = {
+      workerPath: TESSERACT_SILENT_WORKER_PATH,
+      logger: () => {},
+      errorHandler: (data) => {
+        const s = typeof data === "string" ? data : String(data?.message ?? data ?? "");
+        if (isTesseractWasmNoiseMessage(s)) return;
+        console.error(data);
+      },
+    };
     try {
-      const worker = await withMutedTesseractParamWarnings(() => createWorker("kaz+rus+eng"));
+      const worker = await withMutedTesseractParamWarnings(() =>
+        createWorker("kaz+rus+eng", undefined, ocrWorkerOptions)
+      );
       await withMutedTesseractParamWarnings(() =>
         worker.setParameters({ preserve_interword_spaces: "1" })
       );
       return worker;
     } catch {
-      const worker = await withMutedTesseractParamWarnings(() => createWorker("rus+eng"));
+      const worker = await withMutedTesseractParamWarnings(() =>
+        createWorker("rus+eng", undefined, ocrWorkerOptions)
+      );
       await withMutedTesseractParamWarnings(() =>
         worker.setParameters({ preserve_interword_spaces: "1" })
       );
@@ -1770,9 +2495,21 @@ const { id } = useParams();
     }
   };
   const createVinWorkerSafe = async () => {
-    const { createWorker } = await import("tesseract.js");
+    const { createWorker, OEM } = await import("tesseract.js");
+    const vinWorkerOptions = {
+      workerPath: TESSERACT_SILENT_WORKER_PATH,
+      logger: () => {},
+      errorHandler: (data) => {
+        const s = typeof data === "string" ? data : String(data?.message ?? data ?? "");
+        if (isTesseractWasmNoiseMessage(s)) return;
+        console.error(data);
+      },
+    };
+    const oem = OEM?.LSTM_ONLY ?? OEM?.DEFAULT ?? 1;
     try {
-      const worker = await withMutedTesseractParamWarnings(() => createWorker("eng"));
+      const worker = await withMutedTesseractParamWarnings(() =>
+        createWorker("eng", oem, vinWorkerOptions)
+      );
       await withMutedTesseractParamWarnings(() =>
         worker.setParameters({
           preserve_interword_spaces: "1",
@@ -1782,7 +2519,9 @@ const { id } = useParams();
       );
       return worker;
     } catch {
-      const worker = await withMutedTesseractParamWarnings(() => createWorker("eng"));
+      const worker = await withMutedTesseractParamWarnings(() =>
+        createWorker("eng", oem, vinWorkerOptions)
+      );
       await withMutedTesseractParamWarnings(() =>
         worker.setParameters({ preserve_interword_spaces: "1" })
       );
@@ -1950,15 +2689,54 @@ const { id } = useParams();
     ctx.drawImage(sourceCanvas, sx, sy, cw, ch, 0, 0, cw, ch);
     return canvas;
   };
+  const isCanvasLargeEnoughForOcr = (canvas, minSize = 48) => {
+    if (!canvas) return false;
+    const width = Number(canvas.width || 0);
+    const height = Number(canvas.height || 0);
+    return width >= minSize && height >= minSize;
+  };
+  const buildVinContrastCanvas = (sourceCanvas, { scale = 2, threshold = 150, invert = false } = {}) => {
+    if (!sourceCanvas) return null;
+    const sw = sourceCanvas.width;
+    const sh = sourceCanvas.height;
+    if (!sw || !sh) return null;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    canvas.width = Math.max(1, Math.round(sw * scale));
+    canvas.height = Math.max(1, Math.round(sh * scale));
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = image.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      const bw = gray >= threshold ? 255 : 0;
+      const value = invert ? 255 - bw : bw;
+      data[i] = value;
+      data[i + 1] = value;
+      data[i + 2] = value;
+    }
+    ctx.putImageData(image, 0, 0);
+    return canvas;
+  };
   const buildVinFocusedCanvases = (fullCanvas) => {
     if (!fullCanvas) return [];
     const sw = fullCanvas.width;
     const sh = fullCanvas.height;
-    // Несколько зон VIN-плашки: центр, правый блок, верхний центральный блок.
+    // Зоны шильдика (без «правой колонки» — там часто SRS/предупреждения, больше ложных VIN).
+    const leftWide = cropCanvasRect(fullCanvas, sw * 0.04, sh * 0.14, sw * 0.64, sh * 0.56);
     const centerWide = cropCanvasRect(fullCanvas, sw * 0.12, sh * 0.20, sw * 0.78, sh * 0.46);
-    const rightTall = cropCanvasRect(fullCanvas, sw * 0.48, sh * 0.08, sw * 0.48, sh * 0.84);
+    const leftTopBand = cropCanvasRect(fullCanvas, sw * 0.06, sh * 0.18, sw * 0.60, sh * 0.30);
     const topBand = cropCanvasRect(fullCanvas, sw * 0.10, sh * 0.08, sw * 0.82, sh * 0.34);
-    return [fullCanvas, centerWide, rightTall, topBand].filter(Boolean);
+    const bases = [fullCanvas, leftWide, centerWide, leftTopBand, topBand].filter(Boolean);
+    const enhanced = [];
+    bases.forEach((base, i) => {
+      if (i > 2) return;
+      const bw = buildVinContrastCanvas(base, { scale: 2, threshold: 145, invert: false });
+      if (bw) enhanced.push(bw);
+    });
+    return [...bases, ...enhanced];
   };
   const buildMrzFocusedCanvas = (fullCanvas) => {
     if (!fullCanvas) return null;
@@ -2152,52 +2930,92 @@ const { id } = useParams();
         const worker = field === "vin" ? await createVinWorkerSafe() : await createOcrWorkerSafe();
         const roiCanvas = await fileToRoiCanvas(file);
         const fullCanvas = await fileToCanvas(file);
-        const {
-          data: { text },
-        } = await worker.recognize(file);
+        let text = "";
 
         let roiText = "";
         let fioRoiText = "";
 
         if (field === "vin") {
-          const focusCanvases = buildVinFocusedCanvases(fullCanvas);
-          const vinCanvases = [];
-          focusCanvases.forEach((base) => {
-            vinCanvases.push(base);
-            const rotated90 = rotateCanvas(base, 90);
-            const rotated270 = rotateCanvas(base, 270);
-            if (rotated90) vinCanvases.push(rotated90);
-            if (rotated270) vinCanvases.push(rotated270);
-          });
-          const vinTexts = [];
-          const vinParsedAttempts = [];
-          for (const c of vinCanvases) {
-            const vinRes = await worker.recognize(c);
-            const rawVinText = vinRes?.data?.text || "";
-            vinTexts.push(rawVinText);
-            const parsedAttempt = parseRecognizedTextByField("vin", rawVinText);
-            vinParsedAttempts.push({
-              parsed: parsedAttempt,
-              candidates: vinCandidatesDebugRef.current || "",
+          let vinRecognizeTries = 0;
+          let mergedVinOcr = "";
+          let bestVin = "";
+          let bestAttempt = null;
+          await withMutedTesseractWasmNoise(async () => {
+            const fullRes = await worker.recognize(file);
+            text = fullRes?.data?.text || "";
+            const focusCanvases = buildVinFocusedCanvases(fullCanvas);
+            const vinCanvases = [];
+            const seenDims = new Set();
+            const pushUniqueCanvas = (c) => {
+              if (!isCanvasLargeEnoughForOcr(c)) return;
+              const key = `${c.width}x${c.height}`;
+              if (seenDims.has(key)) return;
+              seenDims.add(key);
+              vinCanvases.push(c);
+            };
+            focusCanvases.forEach((base, idx) => {
+              pushUniqueCanvas(base);
+              if (idx <= 1) {
+                pushUniqueCanvas(rotateCanvas(base, 90));
+                pushUniqueCanvas(rotateCanvas(base, 270));
+              }
             });
-          }
-          sourceText = `${vinTexts.join("\n")}\n${text}`;
-          const parsedByAttempt = vinParsedAttempts.map((x) => x.parsed);
-          const bestVin = pickBestVinValue([...parsedByAttempt, parseRecognizedTextByField("vin", text)]);
-          const bestAttempt = vinParsedAttempts.find((x) => normalizeVinValue(x.parsed) === normalizeVinValue(bestVin));
-          setOcrDebug(
-            `field:vin image full=${text.length} tries=${vinTexts.length} best=${bestVin || "-"}`
-          );
-          setOcrFieldDebug((prev) => ({
-            ...prev,
-            vin: `image: full=${text.length}, tries=${vinTexts.length} -> parsed: ${bestVin || "-"} | candidates: ${bestAttempt?.candidates || vinCandidatesDebugRef.current || "none"}`,
-          }));
-          await worker.terminate();
+            vinRecognizeTries = vinCanvases.length;
+            const vinTexts = [];
+            const vinParsedAttempts = [];
+            for (const c of vinCanvases) {
+              let vinRes = null;
+              try {
+                vinRes = await worker.recognize(c);
+              } catch {
+                vinRes = null;
+              }
+              const rawVinText = vinRes?.data?.text || "";
+              if (!rawVinText.trim()) continue;
+              vinTexts.push(rawVinText);
+              const parsedAttempt = parseRecognizedTextByField("vin", rawVinText);
+              vinParsedAttempts.push({
+                parsed: parsedAttempt,
+                candidates: vinCandidatesDebugRef.current || "",
+              });
+            }
+            sourceText = `${vinTexts.join("\n")}\n${text}`;
+            mergedVinOcr = [text, ...vinTexts].join("\n");
+            const parsedByAttempt = vinParsedAttempts.map((x) => x.parsed);
+            bestVin = pickBestVinValue(
+              [
+                ...parsedByAttempt,
+                parseRecognizedTextByField("vin", mergedVinOcr),
+                parseRecognizedTextByField("vin", text),
+              ],
+              mergedVinOcr
+            );
+            bestAttempt = vinParsedAttempts.find(
+              (x) => normalizeVinValue(x.parsed) === normalizeVinValue(bestVin)
+            );
+            setOcrDebug(`field:vin image full=${text.length} tries=${vinRecognizeTries} best=${bestVin || "-"}`);
+            setOcrFieldDebug((prev) => ({
+              ...prev,
+              vin: `image: full=${text.length}, tries=${vinRecognizeTries} -> parsed: ${bestVin || "-"} | candidates: ${bestAttempt?.candidates || vinCandidatesDebugRef.current || "none"}`,
+            }));
+          }, { lingerMs: 280 });
           if (bestVin) {
             setForm((prev) => ({ ...prev, vin: bestVin }));
+            await worker.terminate();
             return;
           }
+          setOcrFieldDebug((prev) => ({
+            ...prev,
+            vin: `${prev.vin || ""} | image: VIN не выбран — отключён «общий» OCR (чтобы не подставлялся ложный номер)`,
+          }));
+          await worker.terminate();
+          return;
         } else {
+          const {
+            data: { text: imgText },
+          } = await worker.recognize(file);
+          text = imgText;
+
           const fioCanvasFromImage = field === "fio" ? cropFioAreaFromCanvas(fullCanvas || null) : null;
           if (roiCanvas) {
             const roiResult = await worker.recognize(roiCanvas);
@@ -2889,6 +3707,177 @@ doc.setFont("Roboto", "normal");
   const vinNormalized = normalizeVinValue(form.vin || "");
   const vinHasValue = vinNormalized.length > 0;
   const vinLooksValid = isVinValid(vinNormalized);
+  const selectedMailCard = useMemo(
+    () => mailCards.find((card) => String(card._id) === String(selectedMailCardId)) || null,
+    [mailCards, selectedMailCardId]
+  );
+
+  const getCardAttachmentsForKey = (key) => {
+    const attachments = Array.isArray(selectedMailCard?.attachments) ? selectedMailCard.attachments : [];
+    if (!attachments.length) return [];
+    const isPdfAttachment = (att) => {
+      const mime = String(att?.mimetype || "").toLowerCase();
+      const name = String(att?.originalname || att?.filename || "").toLowerCase();
+      return mime.includes("pdf") || name.endsWith(".pdf");
+    };
+    const isImageAttachment = (att) => {
+      const mime = String(att?.mimetype || "").toLowerCase();
+      const name = String(att?.originalname || att?.filename || "").toLowerCase();
+      return mime.startsWith("image/") || /\.(jpg|jpeg|png|webp|bmp|gif|heic|heif)$/i.test(name);
+    };
+    const has12DigitName = (att) => {
+      const raw = String(att?.originalname || att?.filename || "");
+      const stem = raw.replace(/\.[^.]+$/, "").trim();
+      return /^\d{12}$/.test(stem);
+    };
+    const hasAnyKeyword = (name, keywords) => keywords.some((kw) => name.includes(kw));
+
+    const keywordsByKey = {
+      udostoverenie: ["удост", "удостовер", "passport", "паспорт", "id", "iin"],
+      ownershipDoc: ["влад", "сртс", "техпаспорт", "ownership", "pts", "птс"],
+      techDescription: ["техопис", "описан", "spec", "характерист"],
+      actDoc: ["акт", "act"],
+      other1: ["шильдик", "vin", "таблич", "plate", "маркиров"],
+    };
+    const keywords = keywordsByKey[key] || [];
+
+    const ranked = [...attachments].sort((a, b) => {
+      const nameA = String(a?.originalname || a?.filename || "").toLowerCase();
+      const nameB = String(b?.originalname || b?.filename || "").toLowerCase();
+
+      const score = (att, name) => {
+        let s = 0;
+        if (hasAnyKeyword(name, keywords)) s += 30;
+
+        if (key === "other1") {
+          if (isImageAttachment(att)) s += 120; // шильдик: сначала фото
+          if (isPdfAttachment(att)) s -= 10;
+        }
+
+        if (key === "udostoverenie") {
+          const hasUdvKeyword = hasAnyKeyword(name, ["удв", "удост", "удостовер"]);
+          if (isPdfAttachment(att)) s += 80; // удостоверение: сначала PDF
+          if (has12DigitName(att)) s += 120; // частый формат имени
+          if (hasUdvKeyword) s += 140; // самый сильный приоритет
+        }
+
+        return s;
+      };
+
+      return score(b, nameB) - score(a, nameA);
+    });
+
+    return ranked;
+  };
+
+  const importFromMailCard = async (key) => {
+    try {
+      if (!selectedMailCard) {
+        alert("Сначала выберите карточку");
+        return;
+      }
+      const candidates = getCardAttachmentsForKey(key);
+      if (!candidates.length) {
+        alert("В выбранной карточке нет вложений");
+        return;
+      }
+      const selectedFilename = selectedAttachmentByKey[key] || candidates[0]?.filename;
+      const selectedAtt = candidates.find((att) => String(att.filename) === String(selectedFilename)) || candidates[0];
+      if (!selectedAtt?.filename) {
+        alert("Не удалось определить вложение");
+        return;
+      }
+      const fileRes = await fetch(`${API_URL}/api/mail-board/files/${encodeURIComponent(String(selectedAtt.filename))}`);
+      if (!fileRes.ok) {
+        throw new Error("fetch failed");
+      }
+      const blob = await fileRes.blob();
+      const fileName = String(selectedAtt.originalname || selectedAtt.filename || `${key}.bin`);
+      const file = new File([blob], fileName, {
+        type: String(selectedAtt.mimetype || blob.type || "application/octet-stream"),
+      });
+
+      if (key === "udostoverenie") {
+        await scanDocumentAndAutofill(file);
+      } else if (key === "other1") {
+        applySingleDocFile(key, file);
+        await runOcrForFile("vin", file);
+      } else {
+        applySingleDocFile(key, file);
+      }
+      setImportStatusByKey((prev) => ({
+        ...prev,
+        [key]: {
+          type: "imported",
+          text: `Подтянуто: ${fileName}`,
+        },
+      }));
+    } catch (err) {
+      console.error("IMPORT FROM MAIL CARD ERROR:", err);
+      alert("Не удалось импортировать файл из карточки");
+      setImportStatusByKey((prev) => ({
+        ...prev,
+        [key]: { type: "error", text: "Ошибка импорта" },
+      }));
+    }
+  };
+
+  const autoImportFromMailCard = async () => {
+    if (!selectedMailCard) {
+      alert("Сначала выберите карточку");
+      return;
+    }
+    try {
+      const usedFilenames = new Set();
+      const nextStatus = {};
+      for (const item of docFieldConfigs) {
+        const candidates = getCardAttachmentsForKey(item.key);
+        if (!candidates.length) {
+          nextStatus[item.key] = { type: "empty", text: "Не найдено вложений" };
+          continue;
+        }
+        const preferredFilename = selectedAttachmentByKey[item.key] || "";
+        const preferred = candidates.find((att) => String(att.filename) === String(preferredFilename));
+        let picked = null;
+        if (preferred && !usedFilenames.has(String(preferred.filename))) {
+          picked = preferred;
+        } else {
+          picked = candidates.find((att) => !usedFilenames.has(String(att.filename))) || null;
+        }
+        if (!picked?.filename) {
+          nextStatus[item.key] = { type: "empty", text: "Нет свободного файла (один файл = одно поле)" };
+          continue;
+        }
+        usedFilenames.add(String(picked.filename));
+
+        const fileRes = await fetch(`${API_URL}/api/mail-board/files/${encodeURIComponent(String(picked.filename))}`);
+        if (!fileRes.ok) {
+          nextStatus[item.key] = { type: "error", text: "Ошибка чтения файла" };
+          continue;
+        }
+        const blob = await fileRes.blob();
+        const fileName = String(picked.originalname || picked.filename || `${item.key}.bin`);
+        const file = new File([blob], fileName, {
+          type: String(picked.mimetype || blob.type || "application/octet-stream"),
+        });
+
+        if (item.key === "udostoverenie") {
+          await scanDocumentAndAutofill(file);
+        } else if (item.key === "other1") {
+          applySingleDocFile(item.key, file);
+          await runOcrForFile("vin", file);
+        } else {
+          applySingleDocFile(item.key, file);
+        }
+        nextStatus[item.key] = { type: "imported", text: `Подтянуто: ${fileName}` };
+      }
+      setImportStatusByKey((prev) => ({ ...prev, ...nextStatus }));
+      alert("Автоподбор из карточки завершен");
+    } catch (err) {
+      console.error("AUTO IMPORT FROM MAIL CARD ERROR:", err);
+      alert("Не удалось выполнить автоподбор из карточки");
+    }
+  };
 
   return (
     <div className="app-form">
@@ -3172,6 +4161,38 @@ doc.setFont("Roboto", "normal");
         <div className="left-section">
           <h3 className="left-section-title">Документы</h3>
           <div className="left-section-subtitle">Загрузите файлы заявки</div>
+          <div style={{ marginBottom: "12px", padding: "10px", border: "1px solid #dbe3ee", borderRadius: "8px" }}>
+            <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "6px" }}>Импорт из карточек</div>
+            <select
+              value={selectedMailCardId}
+              onChange={(e) => setSelectedMailCardId(e.target.value)}
+              disabled={mailCardsLoading || mailCards.length === 0}
+            >
+              <option value="">Выберите карточку</option>
+              {mailCards
+                .filter((card) => String(card.columnId || "") === "new")
+                .map((card) => (
+                  <option key={String(card._id)} value={String(card._id)}>
+                    {card.title || "Без названия"} ({(card.attachments || []).length} влож.)
+                  </option>
+                ))}
+              {mailCards
+                .filter((card) => String(card.columnId || "") !== "new")
+                .map((card) => (
+                  <option key={String(card._id)} value={String(card._id)}>
+                    {card.title || "Без названия"} ({(card.attachments || []).length} влож.)
+                  </option>
+                ))}
+            </select>
+            {mailCardsError ? (
+              <div style={{ marginTop: "6px", color: "#b91c1c", fontSize: "12px" }}>{mailCardsError}</div>
+            ) : null}
+            <div style={{ marginTop: "8px" }}>
+              <button type="button" className="btn btn-blue" onClick={autoImportFromMailCard}>
+                Автоподбор всех документов
+              </button>
+            </div>
+          </div>
 
           {docFieldConfigs.map((item) => (
             <div key={item.key} style={{ marginBottom: "14px" }}>
@@ -3180,22 +4201,71 @@ doc.setFont("Roboto", "normal");
                 type="file"
                 onChange={(e) => handleFileChange(e, item.key)}
               />
+              {selectedMailCard ? (
+                <div style={{ display: "flex", gap: "6px", marginTop: "6px", alignItems: "center" }}>
+                  <select
+                    value={selectedAttachmentByKey[item.key] || ""}
+                    onChange={(e) =>
+                      setSelectedAttachmentByKey((prev) => ({
+                        ...prev,
+                        [item.key]: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Вложение из карточки</option>
+                    {getCardAttachmentsForKey(item.key).map((att) => (
+                      <option key={`${item.key}-${att.filename}`} value={att.filename}>
+                        {att.originalname || att.filename}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" className="btn btn-gray" onClick={() => importFromMailCard(item.key)}>
+                    Взять из карточки
+                  </button>
+                </div>
+              ) : null}
+              {importStatusByKey[item.key]?.text ? (
+                <div
+                  style={{
+                    fontSize: "11px",
+                    marginTop: "4px",
+                    color:
+                      importStatusByKey[item.key].type === "imported"
+                        ? "#065f46"
+                        : importStatusByKey[item.key].type === "error"
+                        ? "#b91c1c"
+                        : "#64748b",
+                  }}
+                >
+                  {importStatusByKey[item.key].text}
+                </div>
+              ) : null}
 
               {existingDocsByKey[item.key]?.length > 0 && (
                 <div className="attached-list">
                   {existingDocsByKey[item.key].map((file) => (
                     <div key={`${file.key}-${file.index}`} className="attached-item">
-                      {file.savedName ? (
-                        <a
-                          href={`${API_URL}/uploads/${file.savedName}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                        {file.savedName ? (
+                          <a
+                            href={`${API_URL}/uploads/${file.savedName}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {file.originalName}
+                          </a>
+                        ) : (
+                          <span>{file.originalName}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="scan-icon-btn"
+                          title="Удалить файл из заявки"
+                          onClick={() => removeExistingDoc(item.key, file)}
                         >
-                          {file.originalName}
-                        </a>
-                      ) : (
-                        <span>{file.originalName}</span>
-                      )}
+                          X
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3205,7 +4275,17 @@ doc.setFont("Roboto", "normal");
                 <div className="attached-list">
                   {uploadedDocsByKey[item.key].map((file, index) => (
                     <div key={`${file.key}-new-${index}`} className="attached-item">
-                      {file.originalName}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                        <span>{file.originalName}</span>
+                        <button
+                          type="button"
+                          className="scan-icon-btn"
+                          title="Убрать загруженный файл"
+                          onClick={() => removeUploadedDoc(item.key)}
+                        >
+                          X
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3226,33 +4306,192 @@ doc.setFont("Roboto", "normal");
 
           {existingPhotos.length > 0 && (
             <div className="attached-list attached-list-photo">
-              {existingPhotos.map((file) => (
-                <div key={`photo-old-${file.index}`} className="attached-item">
-                  {file.savedName ? (
-                    <a
-                      href={`${API_URL}/uploads/${file.savedName}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {file.originalName}
-                    </a>
-                  ) : (
-                    <span>{file.originalName}</span>
-                  )}
-                </div>
-              ))}
+              {existingPhotos.map((file) => {
+                const row = { kind: "existing", entry: file };
+                const rowKey = getPhotoRowKey(row);
+                const galIdx = photoGalleryRows.findIndex(
+                  (r) =>
+                    r.kind === "existing" &&
+                    String(r.entry.savedName) === String(file.savedName) &&
+                    r.entry.index === file.index &&
+                    r.entry.key === file.key
+                );
+                const previewHref = galIdx >= 0 ? getPhotoRowHref(row) : file.savedName ? `${API_URL}/uploads/${file.savedName}` : "";
+                const showThumb = Boolean(previewHref && isImageName(file.originalName || file.savedName || ""));
+                return (
+                  <div key={`photo-old-${file.key}-${file.savedName}-${file.index}`} className="attached-item app-photo-row">
+                    <div className="app-photo-row-main">
+                      {showThumb ? (
+                        <button
+                          type="button"
+                          className="app-photo-thumb-btn"
+                          title="Просмотр"
+                          onClick={() => openPhotoGalleryAt(rowKey)}
+                        >
+                          <img src={previewHref} alt="" className="app-photo-thumb" />
+                        </button>
+                      ) : (
+                        <span className="app-photo-thumb-placeholder" aria-hidden>
+                          ·
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="app-photo-name-btn"
+                        title="Просмотр миниатюр"
+                        onClick={() => {
+                          if (galIdx >= 0) openPhotoGalleryAt(rowKey);
+                        }}
+                        disabled={galIdx < 0}
+                      >
+                        <span className="app-photo-name">{file.originalName}</span>
+                      </button>
+                    </div>
+                    <div className="app-photo-row-actions app-photo-row-menu-root">
+                      <button
+                        type="button"
+                        className="app-photo-menu-btn"
+                        title="Действия"
+                        onClick={() => setPhotoRowMenuKey((k) => (k === rowKey ? "" : rowKey))}
+                      >
+                        ⋯
+                      </button>
+                      {photoRowMenuKey === rowKey ? (
+                        <div className="app-photo-file-menu">
+                          <button type="button" onClick={() => openPhotoInNewWindow(row)} disabled={!previewHref}>
+                            Просмотр в новом окне
+                          </button>
+                          <button type="button" onClick={() => downloadPhotoRow(row)} disabled={!previewHref}>
+                            Скачать
+                          </button>
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="scan-icon-btn"
+                        title="Удалить фото из заявки"
+                        onClick={() => removeExistingPhoto(file)}
+                      >
+                        X
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {uploadedPhotos.length > 0 && (
             <div className="attached-list attached-list-photo">
-              {uploadedPhotos.map((file, index) => (
-                <div key={`photo-new-${index}`} className="attached-item">
-                  {file.originalName}
-                </div>
-              ))}
+              {uploadedPhotos.map((file, index) => {
+                const row = { kind: "uploaded", entry: file };
+                const rowKey = getPhotoRowKey(row);
+                const galIdx = photoGalleryRows.findIndex(
+                  (r) => r.kind === "uploaded" && String(r.entry.savedName) === String(file.savedName)
+                );
+                const previewHref = galIdx >= 0 ? getPhotoRowHref(row) : "";
+                const showThumb = Boolean(previewHref);
+                return (
+                  <div key={`photo-new-${file.savedName}-${file.originalName}-${index}`} className="attached-item app-photo-row">
+                    <div className="app-photo-row-main">
+                      {showThumb ? (
+                        <button
+                          type="button"
+                          className="app-photo-thumb-btn"
+                          title="Просмотр"
+                          onClick={() => openPhotoGalleryAt(rowKey)}
+                        >
+                          <img src={previewHref} alt="" className="app-photo-thumb" />
+                        </button>
+                      ) : (
+                        <span className="app-photo-thumb-placeholder" aria-hidden>
+                          ·
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="app-photo-name-btn"
+                        title="Просмотр миниатюр"
+                        onClick={() => {
+                          if (galIdx >= 0) openPhotoGalleryAt(rowKey);
+                        }}
+                        disabled={galIdx < 0}
+                      >
+                        <span className="app-photo-name">{file.originalName}</span>
+                      </button>
+                    </div>
+                    <div className="app-photo-row-actions app-photo-row-menu-root">
+                      <button
+                        type="button"
+                        className="app-photo-menu-btn"
+                        title="Действия"
+                        onClick={() => setPhotoRowMenuKey((k) => (k === rowKey ? "" : rowKey))}
+                      >
+                        ⋯
+                      </button>
+                      {photoRowMenuKey === rowKey ? (
+                        <div className="app-photo-file-menu">
+                          <button type="button" onClick={() => openPhotoInNewWindow(row)} disabled={!previewHref}>
+                            Просмотр в новом окне
+                          </button>
+                          <button type="button" onClick={() => downloadPhotoRow(row)} disabled={!previewHref}>
+                            Скачать
+                          </button>
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="scan-icon-btn"
+                        title="Убрать загруженное фото"
+                        onClick={() => removeUploadedPhoto(file)}
+                      >
+                        X
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
+
+          {photoGalleryOpen && photoGalleryRows.length > 0 ? (
+            <div className="app-photo-gallery">
+              <div className="app-photo-gallery-head">
+                <strong className="app-photo-gallery-title">
+                  {photoGalleryRows[photoGalleryIndex]?.entry?.originalName ||
+                    photoGalleryRows[photoGalleryIndex]?.entry?.savedName ||
+                    "Фото"}
+                </strong>
+                <button type="button" className="app-photo-gallery-close" onClick={() => setPhotoGalleryOpen(false)}>
+                  Закрыть
+                </button>
+              </div>
+              <div className="app-photo-gallery-main-wrap">
+                <img
+                  src={getPhotoRowHref(photoGalleryRows[photoGalleryIndex])}
+                  alt=""
+                  className="app-photo-gallery-main"
+                />
+              </div>
+              <div className="app-photo-gallery-thumbs" role="tablist" aria-label="Миниатюры">
+                {photoGalleryRows.map((row, i) => {
+                  const href = getPhotoRowHref(row);
+                  const k = getPhotoRowKey(row);
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={`app-photo-gallery-thumb ${i === photoGalleryIndex ? "active" : ""}`}
+                      onClick={() => setPhotoGalleryIndex(i)}
+                      title={row.entry.originalName || row.entry.savedName}
+                    >
+                      {href ? <img src={href} alt="" /> : <span>?</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
         <input
           ref={ocrGalleryRef}

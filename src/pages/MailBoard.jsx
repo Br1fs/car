@@ -34,6 +34,8 @@ export default function MailBoard() {
   const [openedCardId, setOpenedCardId] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [savingTitle, setSavingTitle] = useState(false);
+  const [editingBody, setEditingBody] = useState("");
+  const [savingBody, setSavingBody] = useState(false);
   const [inlineEditCardId, setInlineEditCardId] = useState("");
   const [inlineEditTitle, setInlineEditTitle] = useState("");
   const [pendingAttachmentDelete, setPendingAttachmentDelete] = useState(null);
@@ -87,6 +89,7 @@ export default function MailBoard() {
   useEffect(() => {
     if (openedCard) {
       setEditingTitle(openedCard.title || "");
+      setEditingBody(openedCard.bodyText || "");
     }
   }, [openedCard]);
 
@@ -180,6 +183,18 @@ export default function MailBoard() {
       alert("Не удалось сохранить заголовок");
     } finally {
       setSavingTitle(false);
+    }
+  };
+
+  const saveBody = async (cardId) => {
+    try {
+      setSavingBody(true);
+      await patchCard(cardId, { bodyText: editingBody.trim() });
+    } catch (e) {
+      console.error(e);
+      alert("Не удалось сохранить описание");
+    } finally {
+      setSavingBody(false);
     }
   };
 
@@ -749,95 +764,119 @@ export default function MailBoard() {
 
                 {openedCard.fromEmail && <div className="mail-board-meta">От: {openedCard.fromEmail}</div>}
                 {extractVin(openedCard) && <div className="mail-board-vin">VIN: {extractVin(openedCard)}</div>}
-                {openedCard.bodyText && <p className="mail-board-body">{openedCard.bodyText}</p>}
 
-                <div className="mail-board-attachments-top">
-                  <div className="mail-board-attachments-title">Вложения</div>
-                  <label className="mail-board-upload">
-                    Добавить
-                    <input
-                      type="file"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        e.target.value = "";
-                        if (f) uploadFile(String(openedCard._id), f);
-                      }}
-                    />
-                  </label>
+                <div className="mail-board-modal-section mail-board-description-section">
+                  <div className="mail-board-section-head">
+                    <span className="mail-board-section-title">Описание</span>
+                  </div>
+                  <textarea
+                    className="mail-board-description-textarea"
+                    rows={6}
+                    value={editingBody}
+                    onChange={(e) => setEditingBody(e.target.value)}
+                    placeholder="Текст описания карточки…"
+                  />
+                  <div className="mail-board-description-actions">
+                    <button
+                      type="button"
+                      className="mail-board-btn-primary"
+                      disabled={savingBody}
+                      onClick={() => saveBody(String(openedCard._id))}
+                    >
+                      {savingBody ? "Сохранение…" : "Сохранить описание"}
+                    </button>
+                  </div>
                 </div>
 
-                <div className="mail-board-files">
-                  {(openedCard.attachments || []).map((a) => (
-                    <div key={a.filename} className="mail-board-file-row">
-                      <button
-                        type="button"
-                        className="mail-board-file-open-inline"
-                        onClick={() => {
-                          setPreviewAttachment(a);
-                          setAttachmentMenuFor("");
+                <div className="mail-board-modal-section mail-board-attachments-section">
+                  <div className="mail-board-attachments-top">
+                    <div className="mail-board-attachments-title">Вложения</div>
+                    <label className="mail-board-upload mail-board-upload-pill">
+                      + Добавить
+                      <input
+                        type="file"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) uploadFile(String(openedCard._id), f);
                         }}
-                      >
-                        {isImageAttachment(a) ? (
-                          <img className="mail-board-file-thumb" src={fileUrl(a.filename)} alt={displayAttachmentName(a)} />
-                        ) : (
-                          <span className="mail-board-file-thumb mail-board-file-thumb-fallback">
-                            {isPdfAttachment(a) ? "PDF" : "FILE"}
-                          </span>
-                        )}
-                        <span className="mail-board-file-name">
-                          {displayAttachmentName(a)}
-                          {String(openedCard.coverAttachment || "") === String(a.filename) ? " (обложка)" : ""}
-                        </span>
-                      </button>
-                      <div className="mail-board-file-actions">
-                        <a
-                          className="mail-board-file-open-page"
-                          href={fileUrl(a.filename)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Открыть
-                        </a>
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mail-board-files">
+                    {(openedCard.attachments || []).map((a) => (
+                      <div key={a.filename} className="mail-board-file-row">
                         <button
                           type="button"
-                          className="mail-board-file-menu-btn"
-                          onClick={() =>
-                            setAttachmentMenuFor((prev) =>
-                              prev === String(a.filename) ? "" : String(a.filename)
-                            )
-                          }
+                          className="mail-board-file-open-inline"
+                          onClick={() => {
+                            setPreviewAttachment(a);
+                            setAttachmentMenuFor("");
+                          }}
                         >
-                          ...
+                          {isImageAttachment(a) ? (
+                            <img className="mail-board-file-thumb" src={fileUrl(a.filename)} alt={displayAttachmentName(a)} />
+                          ) : (
+                            <span className="mail-board-file-thumb mail-board-file-thumb-fallback">
+                              {isPdfAttachment(a) ? "PDF" : "FILE"}
+                            </span>
+                          )}
+                          <span className="mail-board-file-name">
+                            {displayAttachmentName(a)}
+                            {String(openedCard.coverAttachment || "") === String(a.filename) ? " (обложка)" : ""}
+                          </span>
                         </button>
-                        {attachmentMenuFor === String(a.filename) && (
-                          <div className="mail-board-file-menu">
-                            <button type="button" onClick={() => renameAttachment(String(openedCard._id), a)}>
-                              Изменить (название)
-                            </button>
-                            <button type="button" onClick={() => commentAttachment(String(openedCard._id), a)}>
-                              Комментировать
-                            </button>
-                            <button type="button" onClick={() => downloadAttachment(a)}>
-                              Скачать
-                            </button>
-                            <button type="button" onClick={() => setAttachmentCover(String(openedCard._id), a)}>
-                              Сделать обложкой
-                            </button>
-                            <button
-                              type="button"
-                              className="mail-board-file-menu-danger"
-                              onClick={() => {
-                                setAttachmentMenuFor("");
-                                removeAttachment(String(openedCard._id), a);
-                              }}
-                            >
-                              Удалить
-                            </button>
-                          </div>
-                        )}
+                        <div className="mail-board-file-actions">
+                          <a
+                            className="mail-board-file-open-page"
+                            href={fileUrl(a.filename)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Открыть
+                          </a>
+                          <button
+                            type="button"
+                            className="mail-board-file-menu-btn"
+                            onClick={() =>
+                              setAttachmentMenuFor((prev) =>
+                                prev === String(a.filename) ? "" : String(a.filename)
+                              )
+                            }
+                          >
+                            ...
+                          </button>
+                          {attachmentMenuFor === String(a.filename) && (
+                            <div className="mail-board-file-menu">
+                              <button type="button" onClick={() => renameAttachment(String(openedCard._id), a)}>
+                                Изменить (название)
+                              </button>
+                              <button type="button" onClick={() => commentAttachment(String(openedCard._id), a)}>
+                                Комментировать
+                              </button>
+                              <button type="button" onClick={() => downloadAttachment(a)}>
+                                Скачать
+                              </button>
+                              <button type="button" onClick={() => setAttachmentCover(String(openedCard._id), a)}>
+                                Сделать обложкой
+                              </button>
+                              <button
+                                type="button"
+                                className="mail-board-file-menu-danger"
+                                onClick={() => {
+                                  setAttachmentMenuFor("");
+                                  removeAttachment(String(openedCard._id), a);
+                                }}
+                              >
+                                Удалить
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
                 {previewAttachment && (

@@ -391,6 +391,54 @@
   line-height: 1.5;
 }
 
+.mail-board-description-section {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.mail-board-section-head {
+  margin-bottom: 10px;
+}
+
+.mail-board-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.mail-board-description-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #0f172a;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.mail-board-description-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.mail-board-description-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.mail-board-attachments-section {
+  margin-top: 20px;
+}
+
 .mail-board-files {
   display: flex;
   flex-direction: column;
@@ -414,6 +462,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mail-board-upload-pill {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.mail-board-upload-pill:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
 }
 
 .mail-board-file-remove {
@@ -647,15 +714,17 @@
 }
 
 .mail-board-attachments-top {
-  margin-top: 12px;
+  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .mail-board-attachments-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+  color: #0f172a;
 }
 
 .mail-board-file-actions {
@@ -723,12 +792,12 @@
   top: 100%;
   right: 0;
   margin-top: 4px;
-  min-width: 190px;
+  min-width: 200px;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
-  z-index: 5;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  z-index: 12;
   display: flex;
   flex-direction: column;
 }
@@ -895,6 +964,40 @@ html[data-theme="dark"] .mail-board-card {
 
 html[data-theme="dark"] .mail-board-body {
   color: #cbd5e1;
+}
+
+html[data-theme="dark"] .mail-board-description-section {
+  background: #020617;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .mail-board-section-title {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .mail-board-attachments-title {
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .mail-board-description-textarea {
+  background: #020617;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .mail-board-description-textarea::placeholder {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .mail-board-upload-pill {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .mail-board-upload-pill:hover {
+  background: #334155;
+  border-color: #64748b;
 }
 
 html[data-theme="dark"] .mail-board-vin {
