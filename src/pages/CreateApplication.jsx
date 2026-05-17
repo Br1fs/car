@@ -4506,6 +4506,12 @@ doc.setFont("Roboto", "normal");
       }
       const fileRes = await fetch(`${API_URL}/api/mail-board/files/${encodeURIComponent(String(selectedAtt.filename))}`);
       if (!fileRes.ok) {
+        if (fileRes.status === 404) {
+          alert(
+            "Файл не найден на сервере. Запись в карточке есть, но сам файл на диске отсутствует (часто после обновления/деплоя). Загрузите вложение в карточку заново."
+          );
+          return;
+        }
         throw new Error("fetch failed");
       }
       const blob = await fileRes.blob();
@@ -4587,7 +4593,13 @@ doc.setFont("Roboto", "normal");
 
         const fileRes = await fetch(`${API_URL}/api/mail-board/files/${encodeURIComponent(String(picked.filename))}`);
         if (!fileRes.ok) {
-          nextStatus[item.key] = { type: "error", text: "Ошибка чтения файла" };
+          nextStatus[item.key] = {
+            type: "error",
+            text:
+              fileRes.status === 404
+                ? "Файл не найден на сервере (часто после деплоя — перезагрузите вложение в карточку)"
+                : "Ошибка чтения файла",
+          };
           continue;
         }
         const blob = await fileRes.blob();

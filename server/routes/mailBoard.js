@@ -12,8 +12,12 @@ const COLLECTION = "mailBoardCards";
 const COLUMN_CONFIG_COLLECTION = "mailBoardColumnConfig";
 const COLUMN_DOC_ID = "singleton";
 
-const uploadDir = path.join(process.cwd(), "uploads", "mail-board");
+/** На Render/других PaaS диск эфемерный — задайте MAIL_BOARD_UPLOAD_DIR на Persistent Disk. */
+const uploadDir = process.env.MAIL_BOARD_UPLOAD_DIR
+  ? path.resolve(process.env.MAIL_BOARD_UPLOAD_DIR)
+  : path.join(process.cwd(), "uploads", "mail-board");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+console.info("[mail-board] uploadDir:", uploadDir);
 
 const decodeUtf8Name = (name) => {
   const raw = String(name || "");

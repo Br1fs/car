@@ -626,6 +626,17 @@
   color: #0f172a;
 }
 
+.mail-board-preview-missing {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px dashed #fcd34d;
+}
+
 .mail-board-preview-image {
   margin-top: 8px;
   width: 100%;

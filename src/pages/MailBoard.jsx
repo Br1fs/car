@@ -86,6 +86,7 @@ export default function MailBoard() {
   const [draggingColumnId, setDraggingColumnId] = useState("");
   const [dragOverColumnInsertIndex, setDragOverColumnInsertIndex] = useState(-1);
   const [cardDropIndicator, setCardDropIndicator] = useState(null);
+  const [brokenCoverCardIds, setBrokenCoverCardIds] = useState(() => new Set());
   const cardDragMovedRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -1094,13 +1095,26 @@ export default function MailBoard() {
                     </div>
                   </div>
                   {extractVin(card) && <div className="mail-board-vin">VIN: {extractVin(card)}</div>}
-                  {getCoverImage(card) && (
-                    <img
-                      className="mail-board-preview-image"
-                      src={fileUrl(getCoverImage(card).filename)}
-                      alt={card.title || "attachment"}
-                    />
-                  )}
+                  {getCoverImage(card) ? (
+                    brokenCoverCardIds.has(String(card._id)) ? (
+                      <div className="mail-board-preview-missing" title="Файл не найден на сервере">
+                        Вложение недоступно (файл на сервере не найден)
+                      </div>
+                    ) : (
+                      <img
+                        className="mail-board-preview-image"
+                        src={fileUrl(getCoverImage(card).filename)}
+                        alt={card.title || "attachment"}
+                        onError={() => {
+                          setBrokenCoverCardIds((prev) => {
+                            const next = new Set(prev);
+                            next.add(String(card._id));
+                            return next;
+                          });
+                        }}
+                      />
+                    )
+                  ) : null}
 
                   <div className="mail-board-card-actions">
                     <button
