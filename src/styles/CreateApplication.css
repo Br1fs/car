@@ -104,6 +104,18 @@
   align-items: center;
 }
 
+/* ИИН / VIN: только красная рамка при ошибке, фон как у остальных полей */
+.left input.field-invalid {
+  border: 2px solid #dc3545 !important;
+}
+
+html[data-theme="dark"] .left input.field-invalid,
+body.dark .left input.field-invalid {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-color: #ef4444 !important;
+}
+
 .scan-inline-actions {
   display: flex;
   gap: 6px;
@@ -152,6 +164,175 @@
   margin: 2px 0 12px;
   font-size: 12px;
   color: #64748b;
+}
+
+.saved-docs-summary {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.saved-docs-summary .left-section-title {
+  margin: 0 0 10px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 15px;
+}
+
+.saved-docs-summary-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-docs-summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid #edf2f7;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.saved-docs-summary-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-docs-summary-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.attached-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.attached-item-name {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.attached-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.attachment-download-btn {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.attachment-download-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.attachment-download-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.saved-docs-summary-label {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.saved-docs-summary-list a,
+.saved-docs-summary-link {
+  color: #0d6efd;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.saved-docs-summary-list a:hover,
+.saved-docs-summary-link:hover {
+  text-decoration: underline;
+}
+
+button.saved-docs-summary-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.saved-docs-summary-name {
+  color: #475569;
+  font-weight: 500;
+}
+
+html[data-theme="dark"] .saved-docs-summary,
+body.dark .saved-docs-summary {
+  background: #1a1a1a;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .saved-docs-summary .left-section-title,
+html[data-theme="dark"] .saved-docs-summary-label,
+body.dark .saved-docs-summary .left-section-title,
+body.dark .saved-docs-summary-label {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .saved-docs-summary-item,
+body.dark .saved-docs-summary-item {
+  border-bottom-color: #334155;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .attached-item-name,
+body.dark .attached-item-name {
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .attachment-download-btn,
+body.dark .attachment-download-btn {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .attachment-download-btn:hover:not(:disabled),
+body.dark .attachment-download-btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: #64748b;
+}
+
+html[data-theme="dark"] .saved-docs-summary-list a,
+html[data-theme="dark"] .saved-docs-summary-link,
+body.dark .saved-docs-summary-list a,
+body.dark .saved-docs-summary-link {
+  color: #60a5fa;
+}
+
+html[data-theme="dark"] .saved-docs-summary-name,
+body.dark .saved-docs-summary-name {
+  color: #94a3b8;
 }
 
 .left label {

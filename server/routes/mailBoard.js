@@ -218,6 +218,38 @@ router.post("/columns", express.json(), async (req, res) => {
   }
 });
 
+/** Изменить порядок колонок */
+router.put("/columns/reorder", express.json(), async (req, res) => {
+  try {
+    const raw = req.body?.columnIds;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return res.status(400).json({ message: "Укажите columnIds — массив id колонок" });
+    }
+    const db = getDB();
+    const columns = await getColumnsFromDb(db);
+    const byId = new Map(columns.map((c) => [String(c.id), c]));
+    const next = [];
+    for (const id of raw) {
+      const col = byId.get(String(id));
+      if (col) {
+        next.push({ ...col, sortOrder: next.length });
+        byId.delete(String(col.id));
+      }
+    }
+    for (const col of columns) {
+      if (byId.has(String(col.id))) {
+        next.push({ ...col, sortOrder: next.length });
+        byId.delete(String(col.id));
+      }
+    }
+    await setColumnsInDb(db, next);
+    res.json({ columns: next });
+  } catch (err) {
+    console.error("MAIL_BOARD PUT columns/reorder:", err);
+    res.status(500).json({ message: "Ошибка изменения порядка колонок" });
+  }
+});
+
 /** Переименовать колонку */
 router.patch("/columns/:columnId", express.json(), async (req, res) => {
   try {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
 import "../styles/MailBoard.css";
@@ -21,6 +21,38 @@ const decodeMojibake = (value) => {
   }
 };
 
+const extractVinFromCard = (card) => {
+  const source = `${card?.title || ""} ${card?.bodyText || ""}`;
+  const match = source.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/);
+  return match ? match[0] : "";
+};
+
+const sortCardsInColumn = (list) =>
+  [...list].sort((a, b) => {
+    const sa = Number(a.sortOrder) || 0;
+    const sb = Number(b.sortOrder) || 0;
+    if (sb !== sa) return sb - sa;
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+
+const computeSortOrderForInsert = (sortedCards, insertIndex) => {
+  const n = sortedCards.length;
+  if (n === 0) return Date.now();
+  if (insertIndex <= 0) {
+    return (Number(sortedCards[0].sortOrder) || Date.now()) + 1000;
+  }
+  if (insertIndex >= n) {
+    return (Number(sortedCards[n - 1].sortOrder) || Date.now()) - 1000;
+  }
+  const above = sortedCards[insertIndex - 1];
+  const below = sortedCards[insertIndex];
+  const gap = Number(above.sortOrder) - Number(below.sortOrder);
+  if (gap > 1) {
+    return (Number(above.sortOrder) + Number(below.sortOrder)) / 2;
+  }
+  return null;
+};
+
 export default function MailBoard() {
   const [columns, setColumns] = useState([]);
   const [cards, setCards] = useState([]);
@@ -28,6 +60,9 @@ export default function MailBoard() {
   const [err, setErr] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
+  const [newCardFiles, setNewCardFiles] = useState([]);
+  const [creatingCard, setCreatingCard] = useState(false);
+  const newCardFilesInputRef = useRef(null);
   const [dragCardId, setDragCardId] = useState(null);
   const [dragOverColumnId, setDragOverColumnId] = useState("");
   const [draggingCardId, setDraggingCardId] = useState("");
@@ -42,10 +77,16 @@ export default function MailBoard() {
   const deleteTimeoutRef = useRef(null);
   const [previewAttachment, setPreviewAttachment] = useState(null);
   const [attachmentMenuFor, setAttachmentMenuFor] = useState("");
+  const [attachmentMenuPos, setAttachmentMenuPos] = useState(null);
   const [editingColumnId, setEditingColumnId] = useState("");
   const [editingColumnTitle, setEditingColumnTitle] = useState("");
   const [editingColumnOriginal, setEditingColumnOriginal] = useState("");
   const [columnMenuFor, setColumnMenuFor] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [draggingColumnId, setDraggingColumnId] = useState("");
+  const [dragOverColumnInsertIndex, setDragOverColumnInsertIndex] = useState(-1);
+  const [cardDropIndicator, setCardDropIndicator] = useState(null);
+  const cardDragMovedRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -70,16 +111,37 @@ export default function MailBoard() {
     return () => clearInterval(t);
   }, [load]);
 
+  const filteredCards = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return cards;
+    return cards.filter((card) => {
+      const haystack = [
+        card.title,
+        card.bodyText,
+        card.fromEmail,
+        extractVinFromCard(card),
+        ...(card.attachments || []).map((a) => decodeMojibake(a?.originalname || a?.filename || "")),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [cards, searchQuery]);
+
   const cardsByColumn = useMemo(() => {
     const m = {};
+    const defaultCol = columns[0]?.id || "new";
     for (const col of columns) m[col.id] = [];
-    for (const c of cards) {
-      const colId = c.columnId || "new";
+    for (const c of filteredCards) {
+      const colId = c.columnId || defaultCol;
       if (!m[colId]) m[colId] = [];
       m[colId].push(c);
     }
+    for (const col of columns) {
+      m[col.id] = sortCardsInColumn(m[col.id] || []);
+    }
     return m;
-  }, [cards, columns]);
+  }, [filteredCards, columns]);
 
   const openedCard = useMemo(
     () => cards.find((c) => String(c._id) === String(openedCardId)) || null,
@@ -97,8 +159,22 @@ export default function MailBoard() {
     if (!openedCard) {
       setPreviewAttachment(null);
       setAttachmentMenuFor("");
+      setAttachmentMenuPos(null);
     }
   }, [openedCard]);
+
+  useEffect(() => {
+    if (!attachmentMenuFor) return undefined;
+    const onDocMouseDown = (e) => {
+      const root = e.target.closest?.(".mail-board-file-menu-root");
+      if (!root) {
+        setAttachmentMenuFor("");
+        setAttachmentMenuPos(null);
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [attachmentMenuFor]);
 
   useEffect(() => {
     if (!columnMenuFor) return undefined;
@@ -143,24 +219,89 @@ export default function MailBoard() {
     return /\.pdf$/i.test(String(att?.filename || ""));
   };
 
-  const extractVin = (card) => {
-    const source = `${card?.title || ""} ${card?.bodyText || ""}`;
-    const match = source.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/);
-    return match ? match[0] : "";
+  const extractVin = extractVinFromCard;
+
+  const persistColumnOrder = async (orderedColumns) => {
+    try {
+      const res = await axios.put(`${API_URL}/api/mail-board/columns/reorder`, {
+        columnIds: orderedColumns.map((c) => c.id),
+      });
+      setColumns(res.data.columns || orderedColumns);
+    } catch (e) {
+      console.error(e);
+      alert("Не удалось изменить порядок колонок");
+      load();
+    }
   };
 
-  const moveCard = async (cardId, columnId) => {
+  const rebalanceColumnCards = async (columnId, orderedCards) => {
+    let sortOrder = orderedCards.length * 1000;
+    const updates = [];
+    for (const card of orderedCards) {
+      updates.push(
+        axios.patch(`${API_URL}/api/mail-board/cards/${card._id}`, {
+          columnId,
+          sortOrder,
+        })
+      );
+      sortOrder -= 1000;
+    }
+    const results = await Promise.all(updates);
+    const byId = new Map(results.map((r) => [String(r.data._id), r.data]));
+    setCards((prev) => prev.map((c) => byId.get(String(c._id)) || c));
+  };
+
+  const reorderCardAt = async (cardId, targetColumnId, insertIndex) => {
+    const moving = cards.find((c) => String(c._id) === String(cardId));
+    if (!moving) return;
+
+    const defaultCol = columns[0]?.id || "new";
+    const columnCards = sortCardsInColumn(
+      cards.filter(
+        (c) =>
+          String(c.columnId || defaultCol) === String(targetColumnId) &&
+          String(c._id) !== String(cardId)
+      )
+    );
+
+    const insertAt = Math.max(0, Math.min(insertIndex, columnCards.length));
+    let sortOrder = computeSortOrderForInsert(columnCards, insertAt);
+
+    if (sortOrder == null) {
+      const ordered = [...columnCards];
+      ordered.splice(insertAt, 0, moving);
+      try {
+        await rebalanceColumnCards(targetColumnId, ordered);
+      } catch (e) {
+        console.error(e);
+        alert("Не удалось изменить порядок карточки");
+        load();
+      }
+      return;
+    }
+
     try {
       const res = await axios.patch(`${API_URL}/api/mail-board/cards/${cardId}`, {
-        columnId,
-        sortOrder: Date.now(),
+        columnId: targetColumnId,
+        sortOrder,
       });
-      setCards((prev) => prev.map((c) => (String(c._id) === cardId ? res.data : c)));
+      setCards((prev) => prev.map((c) => (String(c._id) === String(cardId) ? res.data : c)));
     } catch (e) {
       console.error(e);
       alert("Не удалось переместить карточку");
       load();
     }
+  };
+
+  const moveCard = async (cardId, columnId) => {
+    const defaultCol = columns[0]?.id || "new";
+    const columnCards = sortCardsInColumn(
+      cards.filter(
+        (c) =>
+          String(c.columnId || defaultCol) === String(columnId) && String(c._id) !== String(cardId)
+      )
+    );
+    await reorderCardAt(cardId, columnId, columnCards.length);
   };
 
   const patchCard = async (cardId, patch) => {
@@ -222,7 +363,17 @@ export default function MailBoard() {
     }
   };
 
-  const onDragStart = (e, cardId) => {
+  const clearDragState = () => {
+    setDragCardId(null);
+    setDraggingCardId("");
+    setDragOverColumnId("");
+    setDraggingColumnId("");
+    setDragOverColumnInsertIndex(-1);
+    setCardDropIndicator(null);
+  };
+
+  const onCardDragStart = (e, cardId) => {
+    cardDragMovedRef.current = false;
     setDragCardId(cardId);
     setDraggingCardId(cardId);
     e.dataTransfer.setData("text/card-id", cardId);
@@ -237,26 +388,93 @@ export default function MailBoard() {
     });
   };
 
-  const onDragOver = (e, columnId) => {
+  const onCardDrag = () => {
+    cardDragMovedRef.current = true;
+  };
+
+  const onColumnDragStart = (e, columnId) => {
+    e.stopPropagation();
+    setDraggingColumnId(columnId);
+    e.dataTransfer.setData("text/column-id", columnId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const onColumnDragOver = (e, colIndex) => {
+    if (!draggingColumnId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverColumnInsertIndex !== colIndex) setDragOverColumnInsertIndex(colIndex);
+  };
+
+  const onColumnDropReorder = async (e, colIndex) => {
+    if (!draggingColumnId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id = e.dataTransfer.getData("text/column-id") || draggingColumnId;
+    clearDragState();
+    if (!id) return;
+    const fromIdx = columns.findIndex((c) => c.id === id);
+    if (fromIdx < 0) return;
+    const next = [...columns];
+    const [removed] = next.splice(fromIdx, 1);
+    let insertAt = colIndex;
+    if (fromIdx < colIndex) insertAt -= 1;
+    next.splice(Math.max(0, insertAt), 0, removed);
+    await persistColumnOrder(next);
+  };
+
+  const onDragOverColumn = (e, columnId) => {
+    if (draggingColumnId) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     if (dragOverColumnId !== columnId) setDragOverColumnId(columnId);
+    if (!cardDropIndicator || cardDropIndicator.columnId !== columnId) {
+      const len = (cardsByColumn[columnId] || []).length;
+      setCardDropIndicator({ columnId, index: len });
+    }
+  };
+
+  const onCardDragOver = (e, columnId, cardIndex) => {
+    if (draggingColumnId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    const rect = e.currentTarget.getBoundingClientRect();
+    const before = e.clientY < rect.top + rect.height / 2;
+    const index = before ? cardIndex : cardIndex + 1;
+    if (cardDropIndicator?.columnId !== columnId || cardDropIndicator?.index !== index) {
+      setCardDropIndicator({ columnId, index });
+    }
   };
 
   const onDropColumn = async (e, columnId) => {
+    if (draggingColumnId) {
+      await onColumnDropReorder(e, columns.findIndex((c) => c.id === columnId));
+      return;
+    }
     e.preventDefault();
     const id = e.dataTransfer.getData("text/card-id") || dragCardId;
-    setDragCardId(null);
-    setDraggingCardId("");
-    setDragOverColumnId("");
+    const insertIndex =
+      cardDropIndicator?.columnId === columnId
+        ? cardDropIndicator.index
+        : (cardsByColumn[columnId] || []).length;
+    clearDragState();
     if (!id) return;
-    await moveCard(id, columnId);
+    await reorderCardAt(id, columnId, insertIndex);
   };
 
   const onDragEnd = () => {
-    setDragCardId(null);
-    setDraggingCardId("");
-    setDragOverColumnId("");
+    clearDragState();
+  };
+
+  const addNewCardFiles = (fileList) => {
+    const picked = Array.from(fileList || []);
+    if (!picked.length) return;
+    setNewCardFiles((prev) => [...prev, ...picked]);
+  };
+
+  const removeNewCardFile = (index) => {
+    setNewCardFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const addManualCard = async () => {
@@ -267,17 +485,28 @@ export default function MailBoard() {
     }
     const firstCol = columns[0]?.id || "new";
     try {
-      await axios.post(`${API_URL}/api/mail-board/cards`, {
+      setCreatingCard(true);
+      const res = await axios.post(`${API_URL}/api/mail-board/cards`, {
         columnId: firstCol,
         title,
         bodyText: newBody.trim(),
       });
+      const cardId = String(res.data?._id || "");
+      if (cardId && newCardFiles.length > 0) {
+        for (const file of newCardFiles) {
+          await uploadFile(cardId, file);
+        }
+      }
       setNewTitle("");
       setNewBody("");
-      load();
+      setNewCardFiles([]);
+      if (newCardFilesInputRef.current) newCardFilesInputRef.current.value = "";
+      await load();
     } catch (e) {
       console.error(e);
       alert("Ошибка создания карточки");
+    } finally {
+      setCreatingCard(false);
     }
   };
 
@@ -351,16 +580,62 @@ export default function MailBoard() {
     }
   };
 
-  const downloadAttachment = (attachment) => {
-    const link = document.createElement("a");
-    link.href = fileUrl(attachment.filename);
-    link.download = displayAttachmentName(attachment);
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const openAttachmentInNewTab = (attachment) => {
+    const href = fileUrl(attachment?.filename);
+    if (!href) return;
+    window.open(href, "_blank", "noopener,noreferrer");
     setAttachmentMenuFor("");
+  };
+
+  const downloadAttachmentFile = async (attachment) => {
+    const href = fileUrl(attachment?.filename);
+    const name = displayAttachmentName(attachment);
+    if (!href) return;
+    try {
+      const res = await fetch(href, { mode: "cors", credentials: "omit", cache: "reload" });
+      if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("downloadAttachmentFile", err);
+      alert("Не удалось скачать файл");
+    }
+    setAttachmentMenuFor("");
+  };
+
+  const toggleAttachmentMenu = (filename, event) => {
+    const btn = event?.currentTarget;
+    if (attachmentMenuFor === filename) {
+      setAttachmentMenuFor("");
+      setAttachmentMenuPos(null);
+      return;
+    }
+    const menuW = 200;
+    const menuH = 220;
+    let pos = { top: 80, left: 12, opensUp: false };
+    if (btn?.getBoundingClientRect) {
+      const rect = btn.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 12;
+      const spaceAbove = rect.top - 12;
+      const opensUp = spaceBelow < menuH && spaceAbove > spaceBelow;
+      let left = rect.right - menuW;
+      left = Math.max(12, Math.min(left, window.innerWidth - menuW - 12));
+      pos = {
+        top: opensUp ? rect.top - 4 : rect.bottom + 4,
+        left,
+        opensUp,
+      };
+    }
+    setAttachmentMenuPos(pos);
+    setAttachmentMenuFor(filename);
   };
 
   const confirmDeleteAttachment = async ({ cardId, attachment }) => {
@@ -520,14 +795,30 @@ export default function MailBoard() {
         <div>
           <h2>Карточки</h2>
           <p className="mail-board-sub">
-            Письма с вебхука попадают в первую колонку. Карточки можно перетаскивать между колонками,
-            добавлять файлы и комментарии.
+            Письма с вебхука попадают в первую колонку. Перетаскивайте колонки за заголовок, карточки —
+            выше или ниже в колонке и между колонками.
           </p>
         </div>
-        <button type="button" className="mail-board-refresh" onClick={() => load()}>
-          Обновить
-        </button>
+        <div className="mail-board-head-actions">
+          <input
+            type="search"
+            className="mail-board-search"
+            placeholder="Поиск: заголовок, VIN, текст, вложения…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <button type="button" className="mail-board-refresh" onClick={() => load()}>
+            Обновить
+          </button>
+        </div>
       </div>
+
+      {searchQuery.trim() ? (
+        <div className="mail-board-search-meta">
+          Найдено карточек: {filteredCards.length}
+          {filteredCards.length === 0 ? " — попробуйте другой запрос" : ""}
+        </div>
+      ) : null}
 
       {err && <div className="mail-board-error">{err}</div>}
 
@@ -553,10 +844,69 @@ export default function MailBoard() {
           placeholder="Описание (необязательно)"
           value={newBody}
           onChange={(e) => setNewBody(e.target.value)}
-          rows={2}
+          rows={1}
         />
-        <button type="button" className="mail-board-btn-primary" onClick={addManualCard}>
-          Добавить карточку
+        <div
+          className={`mail-board-create-attachments-wrap${
+            newCardFiles.length > 0 ? " mail-board-create-attachments-wrap-open" : ""
+          }`}
+        >
+          <div className="mail-board-create-attachments">
+            <label className="mail-board-create-attach-label">
+              Вложения
+              <span className="mail-board-upload-pill mail-board-create-attach-btn">
+                + Файлы / фото
+                <input
+                  ref={newCardFilesInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,application/pdf"
+                  onChange={(e) => addNewCardFiles(e.target.files)}
+                />
+              </span>
+            </label>
+            {newCardFiles.length > 0 ? (
+              <span className="mail-board-create-attach-count">
+                {newCardFiles.length}{" "}
+                {newCardFiles.length === 1
+                  ? "файл"
+                  : newCardFiles.length < 5
+                    ? "файла"
+                    : "файлов"}
+              </span>
+            ) : (
+              <span className="mail-board-create-attach-hint">PDF, изображения — можно несколько</span>
+            )}
+          </div>
+          {newCardFiles.length > 0 ? (
+            <div className="mail-board-create-file-popover" role="region" aria-label="Выбранные вложения">
+              <ul className="mail-board-create-file-list">
+                {newCardFiles.map((file, index) => (
+                  <li key={`${file.name}-${file.size}-${index}`}>
+                    <span className="mail-board-create-file-name" title={file.name}>
+                      {file.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="mail-board-create-file-remove"
+                      title="Убрать"
+                      onClick={() => removeNewCardFile(index)}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="mail-board-btn-primary mail-board-create-submit"
+          disabled={creatingCard}
+          onClick={addManualCard}
+        >
+          {creatingCard ? "Создаём…" : "Добавить карточку"}
         </button>
       </div>
 
@@ -567,17 +917,36 @@ export default function MailBoard() {
             gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(200px, 1fr))`,
           }}
         >
-          {columns.map((col) => (
+          {columns.map((col, colIndex) => (
             <div
               key={col.id}
-              className={`mail-board-column ${dragOverColumnId === col.id ? "mail-board-column-drop-target" : ""}`}
-              onDragOver={(e) => onDragOver(e, col.id)}
+              className={`mail-board-column ${
+                dragOverColumnId === col.id && !draggingColumnId ? "mail-board-column-drop-target" : ""
+              } ${
+                draggingColumnId && dragOverColumnInsertIndex === colIndex
+                  ? "mail-board-column-reorder-target"
+                  : ""
+              } ${draggingColumnId === col.id ? "mail-board-column-dragging" : ""}`}
+              onDragOver={(e) => {
+                if (draggingColumnId) onColumnDragOver(e, colIndex);
+                else onDragOverColumn(e, col.id);
+              }}
               onDrop={(e) => onDropColumn(e, col.id)}
               onDragLeave={() => {
                 if (dragOverColumnId === col.id) setDragOverColumnId("");
+                if (dragOverColumnInsertIndex === colIndex) setDragOverColumnInsertIndex(-1);
               }}
             >
-              <div className="mail-board-column-title-wrap">
+              <div
+                className="mail-board-column-title-wrap"
+                draggable={editingColumnId !== col.id}
+                onDragStart={(e) => onColumnDragStart(e, col.id)}
+                onDragEnd={onDragEnd}
+                title="Перетащите, чтобы изменить порядок колонок"
+              >
+                <span className="mail-board-column-drag-handle" aria-hidden>
+                  ⠿
+                </span>
                 <div className="mail-board-column-title-row">
                   {editingColumnId === col.id ? (
                     <input
@@ -643,15 +1012,39 @@ export default function MailBoard() {
                 </div>
               </div>
               <div className="mail-board-column-inner">
-              {(cardsByColumn[col.id] || []).map((card) => (
-                <article
-                  key={String(card._id)}
-                  className={`mail-board-card ${draggingCardId === String(card._id) ? "mail-board-card-dragging" : ""}`}
-                  draggable
-                  onDragStart={(e) => onDragStart(e, String(card._id))}
-                  onDragEnd={onDragEnd}
-                  onClick={() => setOpenedCardId(String(card._id))}
-                >
+              {(cardsByColumn[col.id] || []).map((card, cardIndex) => (
+                <Fragment key={String(card._id)}>
+                  {cardDropIndicator?.columnId === col.id && cardDropIndicator.index === cardIndex ? (
+                    <div className="mail-board-card-drop-line" aria-hidden />
+                  ) : null}
+                  <article
+                    className={`mail-board-card ${draggingCardId === String(card._id) ? "mail-board-card-dragging" : ""}`}
+                    draggable
+                    onDragStart={(e) => onCardDragStart(e, String(card._id))}
+                    onDrag={onCardDrag}
+                    onDragOver={(e) => onCardDragOver(e, col.id, cardIndex)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (draggingColumnId) return;
+                      const id = e.dataTransfer.getData("text/card-id") || dragCardId;
+                      const insertIndex =
+                        cardDropIndicator?.columnId === col.id
+                          ? cardDropIndicator.index
+                          : cardIndex;
+                      clearDragState();
+                      if (!id) return;
+                      void reorderCardAt(id, col.id, insertIndex);
+                    }}
+                    onDragEnd={onDragEnd}
+                    onClick={() => {
+                      if (cardDragMovedRef.current) {
+                        cardDragMovedRef.current = false;
+                        return;
+                      }
+                      setOpenedCardId(String(card._id));
+                    }}
+                  >
                   <div className="mail-board-card-head">
                     {inlineEditCardId === String(card._id) ? (
                       <input
@@ -681,18 +1074,24 @@ export default function MailBoard() {
                         {card.title}
                       </h3>
                     )}
-                    <select
-                      aria-label="Колонка"
-                      value={card.columnId}
+                    <div
+                      className="mail-board-card-column-select-wrap"
                       onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => moveCard(String(card._id), e.target.value)}
                     >
-                      {columns.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.title}
-                        </option>
-                      ))}
-                    </select>
+                      <span className="mail-board-card-column-select-label">Колонка</span>
+                      <select
+                        className="mail-board-card-column-select"
+                        aria-label="Колонка"
+                        value={card.columnId}
+                        onChange={(e) => moveCard(String(card._id), e.target.value)}
+                      >
+                        {columns.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   {extractVin(card) && <div className="mail-board-vin">VIN: {extractVin(card)}</div>}
                   {getCoverImage(card) && (
@@ -716,7 +1115,12 @@ export default function MailBoard() {
                     </button>
                   </div>
                 </article>
+                </Fragment>
               ))}
+              {cardDropIndicator?.columnId === col.id &&
+              cardDropIndicator.index === (cardsByColumn[col.id] || []).length ? (
+                <div className="mail-board-card-drop-line" aria-hidden />
+              ) : null}
             </div>
           </div>
         ))}
@@ -735,7 +1139,11 @@ export default function MailBoard() {
           <div className="mail-board-modal" onClick={(e) => e.stopPropagation()}>
             <div className="mail-board-modal-head">
               <h3>Карточка</h3>
-              <button type="button" className="mail-board-refresh" onClick={() => setOpenedCardId(null)}>
+              <button
+                type="button"
+                className="mail-board-modal-close"
+                onClick={() => setOpenedCardId(null)}
+              >
                 Закрыть
               </button>
             </div>
@@ -810,10 +1218,7 @@ export default function MailBoard() {
                         <button
                           type="button"
                           className="mail-board-file-open-inline"
-                          onClick={() => {
-                            setPreviewAttachment(a);
-                            setAttachmentMenuFor("");
-                          }}
+                          onClick={() => openAttachmentInNewTab(a)}
                         >
                           {isImageAttachment(a) ? (
                             <img className="mail-board-file-thumb" src={fileUrl(a.filename)} alt={displayAttachmentName(a)} />
@@ -827,35 +1232,37 @@ export default function MailBoard() {
                             {String(openedCard.coverAttachment || "") === String(a.filename) ? " (обложка)" : ""}
                           </span>
                         </button>
-                        <div className="mail-board-file-actions">
-                          <a
+                        <div className="mail-board-file-actions mail-board-file-menu-root">
+                          <button
+                            type="button"
                             className="mail-board-file-open-page"
-                            href={fileUrl(a.filename)}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            onClick={() => openAttachmentInNewTab(a)}
                           >
                             Открыть
-                          </a>
+                          </button>
                           <button
                             type="button"
                             className="mail-board-file-menu-btn"
-                            onClick={() =>
-                              setAttachmentMenuFor((prev) =>
-                                prev === String(a.filename) ? "" : String(a.filename)
-                              )
-                            }
+                            onClick={(e) => toggleAttachmentMenu(String(a.filename), e)}
                           >
-                            ...
+                            ⋯
                           </button>
-                          {attachmentMenuFor === String(a.filename) && (
-                            <div className="mail-board-file-menu">
+                          {attachmentMenuFor === String(a.filename) && attachmentMenuPos && (
+                            <div
+                              className="mail-board-file-menu mail-board-file-menu-floating"
+                              style={{
+                                top: attachmentMenuPos.top,
+                                left: attachmentMenuPos.left,
+                                transform: attachmentMenuPos.opensUp ? "translateY(-100%)" : undefined,
+                              }}
+                            >
                               <button type="button" onClick={() => renameAttachment(String(openedCard._id), a)}>
                                 Изменить (название)
                               </button>
                               <button type="button" onClick={() => commentAttachment(String(openedCard._id), a)}>
                                 Комментировать
                               </button>
-                              <button type="button" onClick={() => downloadAttachment(a)}>
+                              <button type="button" onClick={() => void downloadAttachmentFile(a)}>
                                 Скачать
                               </button>
                               <button type="button" onClick={() => setAttachmentCover(String(openedCard._id), a)}>
@@ -866,6 +1273,7 @@ export default function MailBoard() {
                                 className="mail-board-file-menu-danger"
                                 onClick={() => {
                                   setAttachmentMenuFor("");
+                                  setAttachmentMenuPos(null);
                                   removeAttachment(String(openedCard._id), a);
                                 }}
                               >

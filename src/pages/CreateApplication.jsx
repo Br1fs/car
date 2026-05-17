@@ -57,6 +57,12 @@ const getTemplateCategory = (category) => {
   return c;
 };
 
+const formatDocFieldLabel = (label) => {
+  const trimmed = String(label || "").trim();
+  if (!trimmed) return "";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
 const docFieldConfigs = [
   { key: "udostoverenie", label: "удостоверение" },
   { key: "ownershipDoc", label: "о владении ТС" },
@@ -85,6 +91,45 @@ const getOriginalFileNameSafe = (file) => {
   }
 
   return "Без имени";
+};
+
+const downloadBlobAsFile = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || "download";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const downloadAttachment = async ({ url, file, filename } = {}) => {
+  const name = filename || file?.name || "download";
+  try {
+    if (file instanceof Blob) {
+      downloadBlobAsFile(file, name);
+      return;
+    }
+    if (!url) return;
+    if (url.startsWith("blob:")) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("fetch failed");
+      downloadBlobAsFile(await res.blob(), name);
+      return;
+    }
+    const res = await fetch(url, {
+      mode: "cors",
+      credentials: "omit",
+      cache: "reload",
+    });
+    if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+    downloadBlobAsFile(await res.blob(), name);
+  } catch (err) {
+    console.error("downloadAttachment", err);
+    alert("Не удалось скачать файл");
+  }
 };
 
 const isImageName = (name) => /\.(jpg|jpeg|png|webp|bmp|gif)$/i.test(name || "");
@@ -129,29 +174,140 @@ const isVinChecksumValid = (vin) => {
   return normalized[8] === expected;
 };
 
-/** Распространённые WMI (приоритет при выборе среди нескольких «валидных по checksum» строк). */
+/** Распространённые WMI (окна в OCR + приоритет кандидатов). JP/KR/US/EU + уже поддерживаемые CN. */
 const WELL_KNOWN_VIN_WMI_PREFIXES = [
   "4T1",
+  "4T3",
+  "5TD",
+  "5YJ",
+  "1C3",
+  "1C4",
+  "1C6",
+  "1F1",
+  "1F6",
+  "1FA",
+  "1FM",
+  "1FT",
+  "1G1",
+  "1G4",
+  "1G6",
+  "1GC",
+  "1GM",
+  "1GT",
+  "1HG",
+  "1J4",
+  "1N4",
+  "1V2",
+  "1XK",
+  "1XP",
+  "2C3",
+  "2C4",
+  "2F1",
+  "2FA",
+  "2FM",
+  "2FT",
+  "2G1",
+  "2HG",
+  "2HK",
+  "2HM",
+  "2T1",
+  "2T3",
+  "3C3",
+  "3C4",
+  "3FA",
+  "3G1",
+  "3GN",
+  "3KP",
+  "3N1",
+  "3N6",
+  "3VW",
+  "4S3",
+  "4S4",
+  "4S6",
+  "JF1",
+  "JF2",
+  "JH4",
+  "JHM",
+  "JHL",
+  "JHG",
   "JTD",
   "JT2",
   "JT3",
   "JT4",
-  "5TD",
-  "2T1",
-  "LS4",
-  "LS5",
-  "LSG",
-  "LSV",
+  "JTE",
+  "JTH",
+  "JTL",
+  "JTM",
+  "JTN",
+  "KMH",
+  "KM8",
+  "KNA",
+  "KND",
+  "KNM",
+  "KNJ",
+  "L6T",
+  "LBE",
+  "LDC",
   "LFV",
   "LGB",
   "LFP",
-  "LZW",
-  "LVV",
-  "LVS",
-  "LVG",
-  "LHG",
   "LFM",
-  "LDC",
+  "LHG",
+  "LS4",
+  "LS5",
+  "LS6",
+  "LSG",
+  "LSV",
+  "LVG",
+  "LVH",
+  "LVS",
+  "LVV",
+  "LZW",
+  "MA1",
+  "MA3",
+  "MAJ",
+  "MAL",
+  "MMB",
+  "MMC",
+  "MNT",
+  "MR0",
+  "MRH",
+  "NMT",
+  "SAL",
+  "SAJ",
+  "SAR",
+  "SCC",
+  "SJN",
+  "TMA",
+  "TMB",
+  "TM9",
+  "VF1",
+  "VF3",
+  "VF7",
+  "VSS",
+  "WAU",
+  "WA1",
+  "WBA",
+  "WBS",
+  "WBY",
+  "WDB",
+  "WDC",
+  "WDD",
+  "WDX",
+  "WF0",
+  "WVW",
+  "WV1",
+  "WV2",
+  "WVG",
+  "W0L",
+  "W1K",
+  "YV1",
+  "YV2",
+  "ZAM",
+  "ZAR",
+  "ZCF",
+  "ZFA",
+  "ZFF",
 ];
 const withMutedTesseractParamWarnings = async (work) => {
   const originalWarn = console.warn;
@@ -271,8 +427,75 @@ const bestVinSlidingWindowMatch = (vin, compact) => {
   return best;
 };
 
+/** Совпадение только серийных 6 символов (поз. 11–16) с любым окном OCR — против подмены хвоста. */
+const bestVinSixTailMatch = (vin, compact) => {
+  const v = normalizeVinValue(vin);
+  if (v.length !== 17 || !compact || compact.length < 6) return 0;
+  const tail = v.slice(11);
+  let best = 0;
+  for (let i = 0; i <= compact.length - 6; i += 1) {
+    let m = 0;
+    for (let j = 0; j < 6; j += 1) {
+      if (compact[i + j] === tail[j]) m += 1;
+    }
+    if (m > best) best = m;
+  }
+  return best;
+};
+
+/** Китайский шильдик Changan/аналог: WMI LS4/LS5/LS6 + ASE2E… */
+const CHANGAN_PLATE_ROOTS = ["LS4", "LS5", "LS6"];
+const isDomesticChanganAse2Vin = (vin) => /^LS[456]ASE2E/i.test(normalizeVinValue(vin));
+
 const vinStartsWithKnownWmi = (vin) =>
   WELL_KNOWN_VIN_WMI_PREFIXES.some((prefix) => normalizeVinValue(vin).startsWith(prefix));
+
+/**
+ * Эвристики шильдика Changan/аналог (WMI LS4/LS5/LS6 + ASE2E… / SC6485).
+ * Для варианта с «TB» на пластине допускается только **E3TB** (не 0TB/1TB/2TB/5TB…).
+ */
+const isLikelyChanganLs4PlateOcr = (compact) =>
+  Boolean(
+    compact &&
+      (/LS[456]ASE2|LS[456]ASE[^E]|LS[456]AS|SC6485|6485AE|JL473|473ZQ|CHANGAN|长安/i.test(compact) ||
+        /LS[456]ASE2E(?:[17]SD|\dSD|3TB)/i.test(compact))
+  );
+
+/** В OCR есть «семейство» LS4/LS5/LS6 (в т.ч. 1S4/FS4 и аналоги). */
+const hasLs4FamilyInOcrCompact = (compact) =>
+  Boolean(
+    compact &&
+      /LS[456]|1S[456]|FS[456]|F5[456]|L5[456]|5S[456]|IS[456]|JS[456]|0S[456]|OS[456]|TS[456]|SC6485/i.test(
+        compact
+      )
+  );
+
+/** Опасная сборка из хвостов — только при сильном сигнале пластины. */
+const allowLs4TailScanHeuristic = (compact) =>
+  isLikelyChanganLs4PlateOcr(compact) ||
+  (/ASE2E[17]SD/i.test(compact) && hasLs4FamilyInOcrCompact(compact)) ||
+  (/ASE2E3TB/i.test(compact) && hasLs4FamilyInOcrCompact(compact));
+
+/** TB на китайском шильдике с ASE2E — только **3TB**; SD — цифра по месту. */
+const vinChanganTbSdEvidenceAdjust = (vin, compact) => {
+  const v = normalizeVinValue(vin);
+  const c = String(compact || "").toUpperCase();
+  if (v.length !== 17 || !isDomesticChanganAse2Vin(v)) return { bonus: 0, penalty: 0 };
+  let bonus = 0;
+  let penalty = 0;
+  const mid = v.slice(8, 11);
+  if (mid === "3TB" && /3TB|ASE2E3TB|LS[456]ASE2E3TB/i.test(c)) bonus += 165;
+  if (mid.endsWith("TB") && !mid.startsWith("3")) {
+    penalty += 320;
+    if (/3TB|ASE2E3TB|LS[456]ASE2E3TB/i.test(c)) penalty += 160;
+  }
+  if (mid === "1SD" && /5TB|E5TB|TB\d{3}/.test(c)) penalty += 160;
+  if (mid === "7SD" && /ASE2E1SD|E1SD/.test(c) && !/ASE2E7SD|E7SD/.test(c)) penalty += 55;
+  if (mid === "7SD" && /3TB|ASE2E3TB|LS[456]ASE2E3TB/i.test(c) && !/ASE2E7SD|LS[456]ASE2E7SD|E7SD/i.test(c)) {
+    penalty += 210;
+  }
+  return { bonus, penalty };
+};
 
 const collectChecksumValidVinWindows = (mergedRaw) => {
   const compact = mergeVinOcrCompact(mergedRaw);
@@ -359,12 +582,23 @@ const applyChanganPlaqueOcrHeuristics = (vin, compact) => {
   return v;
 };
 
-/** Префиксы Changan SC6485: на шильдике часто «E1SD», OCR путает с «E7SD». */
-const CHANGAN_LS4_ASE2_HEADS = ["LS4ASE2E7SD", "LS4ASE2E1SD"];
-const isChanganLs4Ase2FixedHeadVin = (vin) =>
-  CHANGAN_LS4_ASE2_HEADS.some((h) => normalizeVinValue(vin).startsWith(h));
+const buildChanganAse2HeadPrefixes = () => {
+  const heads = new Set();
+  for (const root of CHANGAN_PLATE_ROOTS) {
+    heads.add(`${root}ASE2E7SD`);
+    heads.add(`${root}ASE2E1SD`);
+    heads.add(`${root}ASE2E3TB`);
+    for (let d = 0; d <= 9; d += 1) heads.add(`${root}ASE2E${d}SD`);
+  }
+  return [...heads];
+};
+const CHANGAN_LS4_ASE2_HEADS = buildChanganAse2HeadPrefixes();
+const isChanganLs4Ase2FixedHeadVin = (vin) => {
+  const v = normalizeVinValue(vin);
+  return /^LS[456]ASE2E(?:[17]SD|\dSD|3TB)/.test(v) || CHANGAN_LS4_ASE2_HEADS.some((h) => v.startsWith(h));
+};
 
-/** Достаёт VIN вида LS4ASE2E[17]SD + 6 символов из «компактного» OCR (разные серийные номера). */
+/** Достаёт VIN LS[456]ASE2E + (E[17]SD | E{d}SD | E3TB) + 6 символов из компактного OCR. */
 const extractVinFromLs4Ase2E7SdInCompact = (compact) => {
   if (!compact) return [];
   const out = [];
@@ -374,18 +608,39 @@ const extractVinFromLs4Ase2E7SdInCompact = (compact) => {
     out.push(v);
   };
   let m;
-  const reLs = /LS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
-  while ((m = reLs.exec(compact)) !== null) {
-    pushIfOk(`LS4ASE2E${m[1]}SD${m[2]}`);
-  }
-  const reFs = /FS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
-  while ((m = reFs.exec(compact)) !== null) {
-    pushIfOk(`LS4ASE2E${m[1]}SD${m[2]}`);
+  for (const root of CHANGAN_PLATE_ROOTS) {
+    const esc = root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const reLs = new RegExp(`${esc}ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})`, "gi");
+    while ((m = reLs.exec(compact)) !== null) {
+      pushIfOk(`${root}ASE2E${m[1]}SD${m[2]}`);
+    }
+    const reLsDigitSd = new RegExp(`${esc}ASE2E(\\d)SD([A-HJ-NPR-Z0-9]{6})`, "gi");
+    while ((m = reLsDigitSd.exec(compact)) !== null) {
+      pushIfOk(`${root}ASE2E${m[1]}SD${m[2]}`);
+    }
+    const reLs3Tb = new RegExp(`${esc}ASE2E3TB([A-HJ-NPR-Z0-9]{6})`, "gi");
+    while ((m = reLs3Tb.exec(compact)) !== null) {
+      pushIfOk(`${root}ASE2E3TB${m[1]}`);
+    }
+    const fsRoot = `F${root.slice(1)}`;
+    const escFs = fsRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const reFs = new RegExp(`${escFs}ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})`, "gi");
+    while ((m = reFs.exec(compact)) !== null) {
+      pushIfOk(`${root}ASE2E${m[1]}SD${m[2]}`);
+    }
+    const reFsDigitSd = new RegExp(`${escFs}ASE2E(\\d)SD([A-HJ-NPR-Z0-9]{6})`, "gi");
+    while ((m = reFsDigitSd.exec(compact)) !== null) {
+      pushIfOk(`${root}ASE2E${m[1]}SD${m[2]}`);
+    }
+    const reFs3Tb = new RegExp(`${escFs}ASE2E3TB([A-HJ-NPR-Z0-9]{6})`, "gi");
+    while ((m = reFs3Tb.exec(compact)) !== null) {
+      pushIfOk(`${root}ASE2E3TB${m[1]}`);
+    }
   }
   return [...new Set(out)];
 };
 
-/** Типичные ошибки OCR в первых трёх символах вместо LS4 (шильдик Changan). */
+/** Типичные ошибки OCR в первых трёх символах вместо LS4/LS5/LS6. */
 const CHANGAN_VIN_LEAD_THREE_FIX = new Map([
   ["1S4", "LS4"],
   ["FS4", "LS4"],
@@ -397,12 +652,22 @@ const CHANGAN_VIN_LEAD_THREE_FIX = new Map([
   ["0S4", "LS4"],
   ["OS4", "LS4"],
   ["TS4", "LS4"],
+  ["1S5", "LS5"],
+  ["FS5", "LS5"],
+  ["F55", "LS5"],
+  ["L55", "LS5"],
+  ["5S5", "LS5"],
+  ["1S6", "LS6"],
+  ["FS6", "LS6"],
+  ["F56", "LS6"],
+  ["L56", "LS6"],
+  ["5S6", "LS6"],
 ]);
 
 const withLs4LeadIfPossible = (vin17) => {
   const v = normalizeVinValue(vin17);
   if (v.length !== 17 || !isVinValid(v)) return "";
-  if (v.startsWith("LS4")) return v;
+  if (/^LS[456]/.test(v)) return v;
   const p = CHANGAN_VIN_LEAD_THREE_FIX.get(v.slice(0, 3));
   if (!p) return "";
   return normalizeVinValue(`${p}${v.slice(3)}`);
@@ -417,7 +682,7 @@ const recoverVinFromSlidingWindows = (mergedRaw) => {
     const slice = compact.slice(i, i + 17);
     if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(slice)) continue;
     let patched = withLs4LeadIfPossible(slice);
-    if (!patched || !patched.startsWith("LS4")) continue;
+    if (!patched || !/^LS[456]/.test(patched)) continue;
     patched = normalizeVinValue(applyChanganPlaqueOcrHeuristics(patched, compact));
     if (!isVinValid(patched)) continue;
     if (isVinChecksumValid(patched)) found.add(patched);
@@ -429,7 +694,7 @@ const recoverVinFromSlidingWindows = (mergedRaw) => {
   return [...found];
 };
 
-/** Если «LS4» потерян, но есть стабильный фрагмент ASE2E[17]SD + 6 символов серии. */
+/** Якорь ASE2E… без полного WMI — пробуем LS4/LS5/LS6. TB только E3TB. */
 const extractVinFromAse2E7SdAnchor = (mergedRaw) => {
   const compact = mergeVinOcrCompact(mergedRaw);
   if (!compact) return [];
@@ -437,15 +702,31 @@ const extractVinFromAse2E7SdAnchor = (mergedRaw) => {
   const re = /ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
   let m;
   while ((m = re.exec(compact)) !== null) {
-    const v = normalizeVinValue(`LS4ASE2E${m[1]}SD${m[2]}`);
-    if (v.length === 17 && isVinValid(v) && isVinChecksumValid(v)) out.push(v);
+    for (const root of CHANGAN_PLATE_ROOTS) {
+      const v = normalizeVinValue(`${root}ASE2E${m[1]}SD${m[2]}`);
+      if (v.length === 17 && isVinValid(v) && isVinChecksumValid(v)) out.push(v);
+    }
+  }
+  const reDigitSd = /ASE2E(\d)SD([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = reDigitSd.exec(compact)) !== null) {
+    for (const root of CHANGAN_PLATE_ROOTS) {
+      const v = normalizeVinValue(`${root}ASE2E${m[1]}SD${m[2]}`);
+      if (v.length === 17 && isVinValid(v) && isVinChecksumValid(v)) out.push(v);
+    }
+  }
+  const re3Tb = /ASE2E3TB([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = re3Tb.exec(compact)) !== null) {
+    for (const root of CHANGAN_PLATE_ROOTS) {
+      const v = normalizeVinValue(`${root}ASE2E3TB${m[1]}`);
+      if (v.length === 17 && isVinValid(v) && isVinChecksumValid(v)) out.push(v);
+    }
   }
   return [...new Set(out)];
 };
 
 /**
- * Когда OCR рвёт строку VIN: перебираем все 6-символьные хвосты + якоря E[17]SD… / 4ASE2E[17]SD… / S4ASE2E[17]SD…
- * (фиксированный префикс Changan до серийного номера).
+ * Сборка VIN только из фрагментов OCR (без перебора всех 6-символьных «хвостов» —
+ * он даёт ложные checksum LS4ASE2E0TB…).
  */
 const recoverVinLs4Ase2E7sdByTailScan = (mergedRaw) => {
   const compact = mergeVinOcrCompact(mergedRaw);
@@ -456,23 +737,26 @@ const recoverVinLs4Ase2E7sdByTailScan = (mergedRaw) => {
     if (v.length !== 17 || !isVinValid(v) || !isVinChecksumValid(v)) return;
     found.add(v);
   };
-  for (let i = 0; i <= compact.length - 6; i += 1) {
-    const tail = compact.slice(i, i + 6);
-    if (!/^[A-HJ-NPR-Z0-9]{6}$/.test(tail)) continue;
-    for (const head of CHANGAN_LS4_ASE2_HEADS) tryAdd(`${head}${tail}`);
-  }
   let m;
   const reE = /E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
   while ((m = reE.exec(compact)) !== null) {
-    tryAdd(`LS4ASE2E${m[1]}SD${m[2]}`);
+    for (const root of CHANGAN_PLATE_ROOTS) tryAdd(`${root}ASE2E${m[1]}SD${m[2]}`);
+  }
+  const reEdigitSd = /E(\d)SD([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = reEdigitSd.exec(compact)) !== null) {
+    for (const root of CHANGAN_PLATE_ROOTS) tryAdd(`${root}ASE2E${m[1]}SD${m[2]}`);
+  }
+  const reE3Tb = /E3TB([A-HJ-NPR-Z0-9]{6})/gi;
+  while ((m = reE3Tb.exec(compact)) !== null) {
+    for (const root of CHANGAN_PLATE_ROOTS) tryAdd(`${root}ASE2E3TB${m[1]}`);
   }
   const re4 = /4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
   while ((m = re4.exec(compact)) !== null) {
-    tryAdd(`LS${m[0]}`);
+    tryAdd(`LS4ASE2E${m[1]}SD${m[2]}`);
   }
   const reS4 = /S4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
   while ((m = reS4.exec(compact)) !== null) {
-    tryAdd(`L${m[0]}`);
+    tryAdd(`LS4ASE2E${m[1]}SD${m[2]}`);
   }
   return [...found];
 };
@@ -484,7 +768,7 @@ const collectLs4RoughVinWindows = (mergedRaw) => {
   for (let i = 0; i <= compact.length - 17; i += 1) {
     const slice = normalizeVinValue(compact.slice(i, i + 17));
     if (slice.length !== 17 || !isVinValid(slice)) continue;
-    if (!slice.startsWith("LS4")) continue;
+    if (!/^LS[456]/.test(slice)) continue;
     found.push(slice);
   }
   return found;
@@ -521,8 +805,9 @@ const vinChanganPlateRankingAdjust = (vin, compact) => {
   const tail = v.slice(11);
   const c = String(compact || "").toUpperCase();
   if (tail.length === 6 && c.includes(tail)) bonus += 92;
-  if (v.startsWith("LS4ASE2E1SD") && /ASE2E1SD|E1SD14|LS4ASE2E1SD/i.test(c)) bonus += 48;
-  if (v.startsWith("LS4ASE2E7SD") && /ASE2E1SD|E1SD14/i.test(c) && !/ASE2E7SD|LS4ASE2E7SD/.test(c)) penalty += 95;
+  if (/^LS[456]ASE2E1SD/.test(v) && /ASE2E1SD|E1SD14|LS[456]ASE2E1SD/i.test(c)) bonus += 48;
+  if (/^LS[456]ASE2E3TB/.test(v) && /3TB|ASE2E3TB|LS[456]ASE2E3TB/i.test(c)) bonus += 56;
+  if (/^LS[456]ASE2E7SD/.test(v) && /ASE2E1SD|E1SD14/i.test(c) && !/ASE2E7SD|LS[456]ASE2E7SD/.test(c)) penalty += 95;
   const dateLikeDigitTail = /^\d{6}$/.test(tail) && isSixDigitYymmddLikeTail(tail);
   if (/^\d{6}$/.test(tail) && !dateLikeDigitTail) bonus += 52;
   else if (!/^\d{6}$/.test(tail)) {
@@ -545,14 +830,41 @@ const vinChanganPlateRankingAdjust = (vin, compact) => {
   return { bonus, penalty };
 };
 
+/** Слабое совпадение с OCR для «собранного» LS[456]ASE2E… */
+const isFabricatedChanganStyleVin = (vin) => {
+  const v = normalizeVinValue(vin);
+  return /^LS[456]ASE2E\d(?:SD|TB)/.test(v);
+};
+
+const longestVinPrefixMatchInCompact = (vin, compact) => {
+  const v = normalizeVinValue(vin);
+  const c = String(compact || "");
+  if (!v || !c) return 0;
+  let best = 0;
+  for (let i = 0; i <= c.length - 1; i += 1) {
+    let n = 0;
+    for (let j = 0; j < v.length && i + j < c.length; j += 1) {
+      if (c[i + j] === v[j]) n += 1;
+      else break;
+    }
+    if (n > best) best = n;
+  }
+  return best;
+};
+
 const pickBestVinValue = (values = [], mergedOcrHint = "") => {
   const compact = mergeVinOcrCompact(mergedOcrHint);
+  const changanPlate = isLikelyChanganLs4PlateOcr(compact);
+  const ls4Family = hasLs4FamilyInOcrCompact(compact);
+  const allowTailScan = allowLs4TailScanHeuristic(compact);
+
   const fromLs4Sd = extractVinFromLs4Ase2E7SdInCompact(compact);
-  const fromAnchor = extractVinFromAse2E7SdAnchor(mergedOcrHint);
-  const fromTailScan = recoverVinLs4Ase2E7sdByTailScan(mergedOcrHint);
-  const fromSliding = recoverVinFromSlidingWindows(mergedOcrHint);
+  const fromAnchor = ls4Family || changanPlate ? extractVinFromAse2E7SdAnchor(mergedOcrHint) : [];
+  const fromTailScan = allowTailScan ? recoverVinLs4Ase2E7sdByTailScan(mergedOcrHint) : [];
+  const fromSliding = ls4Family || changanPlate ? recoverVinFromSlidingWindows(mergedOcrHint) : [];
   const fromWindows = collectChecksumValidVinWindows(mergedOcrHint);
-  const roughLs4 = collectLs4RoughVinWindows(mergedOcrHint);
+  const roughLs4 = ls4Family ? collectLs4RoughVinWindows(mergedOcrHint) : [];
+
   const rawSet = new Set([
     ...values.map((v) => normalizeVinValue(v)).filter(Boolean),
     ...fromWindows,
@@ -580,33 +892,66 @@ const pickBestVinValue = (values = [], mergedOcrHint = "") => {
   if (wmiPreferred.length) unique = wmiPreferred;
   if (!unique.length) return "";
   const changanHint =
-    /LS4|1S4|FS4|F54|L54|5S4|ASE2E[17]SD|E[17]SD|SC6485/i.test(compact) ||
+    changanPlate ||
+    /LS4ASE2|LS4ASE[^E]|SC6485/i.test(compact) ||
     unique.some((v) => typeof v === "string" && v.startsWith("LS4"));
+
+  const maxWindowAmongChecksum = Math.max(
+    0,
+    ...unique
+      .filter((v) => isVinChecksumValid(v))
+      .map((v) => bestVinSlidingWindowMatch(v, compact))
+  );
+
   const ranked = unique
     .map((value) => {
       const checksum = isVinChecksumValid(value);
       const windowMatch = bestVinSlidingWindowMatch(value, compact);
+      const prefixMatch = longestVinPrefixMatchInCompact(value, compact);
+      const embedded = compact.includes(value);
+      const fabricatedWeak =
+        isFabricatedChanganStyleVin(value) &&
+        !changanPlate &&
+        windowMatch < 12 &&
+        maxWindowAmongChecksum >= windowMatch + 3;
+
       const { bonus: plateBonus, penalty: platePenalty } = vinChanganPlateRankingAdjust(value, compact);
+      const { bonus: tbBonus, penalty: tbPenalty } = vinChanganTbSdEvidenceAdjust(value, compact);
       const evidence =
-        (isChanganLs4Ase2FixedHeadVin(value) && /LS4ASE2E[17]SD[A-Z0-9]{6}/i.test(compact) ? 70 : 0) +
-        (isChanganLs4Ase2FixedHeadVin(value) && /ASE2E[17]SD[A-Z0-9]{6}/i.test(compact) ? 55 : 0) +
-        (compact.includes("LS4ASE2E") && /^LS4ASE2E[17]/.test(value) ? 40 : 0) +
-        (changanHint && value.startsWith("LS4") ? 30 : 0);
-      const ls4MismatchPenalty = changanHint && !value.startsWith("LS4") ? 420 : 0;
+        (changanPlate &&
+        isChanganLs4Ase2FixedHeadVin(value) &&
+        /LS4ASE2E\d(?:SD|TB)[A-Z0-9]{6}/i.test(compact)
+          ? 70
+          : 0) +
+        (changanPlate &&
+        isChanganLs4Ase2FixedHeadVin(value) &&
+        /ASE2E\d(?:SD|TB)[A-Z0-9]{6}/i.test(compact)
+          ? 55
+          : 0) +
+        (changanPlate && compact.includes("LS4ASE2E") && /^LS4ASE2E[17]/.test(value) ? 40 : 0) +
+        (changanHint && value.startsWith("LS4") ? 18 : 0);
+      const ls4MismatchPenalty = changanHint && changanPlate && !value.startsWith("LS4") ? 420 : 0;
+      const fabricatedPenalty = fabricatedWeak ? 200 : 0;
+      const ocrAlignment =
+        22 * windowMatch + 4 * prefixMatch + (embedded ? 95 : 0) + (embedded && checksum ? 35 : 0);
+
       const score =
-        scoreVinCandidate(value) +
-        5 * windowMatch +
-        (compact.includes(value) ? 28 : 0) +
+        scoreVinCandidate(value) * 0.55 +
+        ocrAlignment +
         evidence +
         plateBonus -
-        platePenalty -
+        platePenalty +
+        tbBonus -
+        tbPenalty -
         vinOcrHallucinationPenalty(value) -
-        ls4MismatchPenalty;
+        ls4MismatchPenalty -
+        fabricatedPenalty;
       return { value, score, checksum, windowMatch };
     })
     .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
+      if (b.checksum !== a.checksum) return Number(b.checksum) - Number(a.checksum);
       if (b.windowMatch !== a.windowMatch) return b.windowMatch - a.windowMatch;
+      if (b.score !== a.score) return b.score - a.score;
       const tailDigits = (x) => ((x.value || "").slice(11).match(/\d/g) || []).length;
       if (tailDigits(b) !== tailDigits(a)) return tailDigits(b) - tailDigits(a);
       if (a.value !== b.value) return a.value.localeCompare(b.value);
@@ -615,7 +960,7 @@ const pickBestVinValue = (values = [], mergedOcrHint = "") => {
   const checksumPool = ranked.filter((item) => item.checksum);
   const checksumWmi = checksumPool.filter((item) => vinStartsWithKnownWmi(item.value));
   const checksumWmiLs4 =
-    changanHint && checksumWmi.some((item) => item.value.startsWith("LS4"))
+    changanHint && changanPlate && checksumWmi.some((item) => item.value.startsWith("LS4"))
       ? checksumWmi.filter((item) => item.value.startsWith("LS4"))
       : checksumWmi;
   return (checksumWmiLs4[0] || checksumWmi[0] || checksumPool[0] || ranked[0] || {}).value || "";
@@ -902,14 +1247,23 @@ const { id } = useParams();
         setMailCardsError("");
         const res = await axios.get(`${API_URL}/api/mail-board`);
         const allCards = Array.isArray(res.data?.cards) ? res.data.cards : [];
-        const cardsWithAttachments = allCards.filter((card) => Array.isArray(card.attachments) && card.attachments.length > 0);
+        const columns = Array.isArray(res.data?.columns) ? res.data.columns : [];
+        const firstColumnId = columns[0]?.id ? String(columns[0].id) : "new";
+        const cardsWithAttachments = allCards.filter((card) => {
+          if (!Array.isArray(card.attachments) || card.attachments.length === 0) return false;
+          const colId = String(card.columnId || firstColumnId);
+          return colId === firstColumnId;
+        });
         setMailCards(cardsWithAttachments);
-        if (!selectedMailCardId && cardsWithAttachments.length > 0) {
-          setSelectedMailCardId(String(cardsWithAttachments[0]._id));
-        }
+        setSelectedMailCardId((prev) => {
+          if (prev && cardsWithAttachments.some((c) => String(c._id) === String(prev))) {
+            return prev;
+          }
+          return cardsWithAttachments[0] ? String(cardsWithAttachments[0]._id) : "";
+        });
       } catch (err) {
         console.error("Ошибка загрузки карточек почты:", err);
-        setMailCardsError("Не удалось загрузить карточки с вложениями");
+        setMailCardsError("Не удалось загрузить карточки колонки «Новая заявка»");
       } finally {
         setMailCardsLoading(false);
       }
@@ -1573,15 +1927,61 @@ const { id } = useParams();
     const href = getPhotoRowHref(row);
     if (!href) return;
     const name = row.entry.originalName || row.entry.savedName || "photo";
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = name;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    let file = null;
+    if (row.kind === "uploaded") {
+      file = (files.photos || []).find((p) => p?.name === row.entry.savedName) || null;
+    }
+    void downloadAttachment({ url: href, file, filename: name });
     setPhotoRowMenuKey("");
+  };
+
+  const getUploadedDocFile = (key) => {
+    const value = files[key];
+    return value instanceof File ? value : null;
+  };
+
+  const downloadExistingDocFile = (file) => {
+    if (!file?.savedName) return;
+    void downloadAttachment({
+      url: `${API_URL}/uploads/${file.savedName}`,
+      filename: file.originalName || file.savedName,
+    });
+  };
+
+  const downloadUploadedDocFile = (key, file) => {
+    const localFile = getUploadedDocFile(key);
+    if (localFile) {
+      void downloadAttachment({ file: localFile, filename: file?.originalName || localFile.name });
+      return;
+    }
+    if (file?.savedName) {
+      void downloadAttachment({
+        url: `${API_URL}/uploads/${file.savedName}`,
+        filename: file.originalName || file.savedName,
+      });
+    }
+  };
+
+  const downloadSavedPreviewEntry = (entry) => {
+    if (entry.localFile) {
+      void downloadAttachment({ file: entry.localFile, filename: entry.originalName });
+      return;
+    }
+    if (entry.href) {
+      void downloadAttachment({ url: entry.href, filename: entry.originalName });
+    }
+  };
+
+  const openSavedPreviewEntry = (entry) => {
+    if (entry.href) {
+      window.open(entry.href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (entry.localFile) {
+      const url = URL.createObjectURL(entry.localFile);
+      window.open(url, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
   };
 
   const openPhotoGalleryAt = (rowKey) => {
@@ -1813,6 +2213,16 @@ const { id } = useParams();
       const labelMatches = labelNormalized.match(vinRe) || [];
       labelMatches.forEach((match) => pushCandidate(match, 100));
 
+      const vinByZhLabel = findByLabel(/(车辆识别代号|车辆识别|识别代号)/i);
+      const zhNorm = normalizeVinText(vinByZhLabel);
+      (zhNorm.match(vinRe) || []).forEach((match) => pushCandidate(match, 108));
+
+      const zhVinRowIdx = lines.findIndex((line) => /车辆识别代号|车辆识别|识别代号/i.test(line));
+      if (zhVinRowIdx !== -1) {
+        const zhChunk = lines.slice(zhVinRowIdx, zhVinRowIdx + 3).filter(Boolean).join("\n");
+        (normalizeVinText(zhChunk).match(vinRe) || []).forEach((match) => pushCandidate(match, 118));
+      }
+
       for (let i = 0; i < lines.length; i += 1) {
         if (!/\bvin\b/i.test(lines[i])) continue;
         const area = [lines[i], lines[i + 1], lines[i + 2]].filter(Boolean).join(" ");
@@ -1844,35 +2254,109 @@ const { id } = useParams();
       }
 
       const scanCompact = normalizeVinText(raw).replace(/\s+/g, "");
+      const changanStrong = isLikelyChanganLs4PlateOcr(scanCompact);
+      const ls4OcrHint = hasLs4FamilyInOcrCompact(scanCompact);
+      const ls4ChanganAssembly = changanStrong || ls4OcrHint;
       let lm;
-      const ls4SdTailRe = /LS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
-      while ((lm = ls4SdTailRe.exec(scanCompact)) !== null) {
-        const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
-        if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
-          pushCandidate(assembled, 92);
+      if (ls4ChanganAssembly) {
+        const ls4SdTailRe = /LS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = ls4SdTailRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 92);
+          }
+        }
+        const fs4SdTailRe = /FS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = fs4SdTailRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 90);
+          }
+        }
+        const anchorTailRe = /ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = anchorTailRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 94);
+          }
+        }
+        const ls4DigitMidRe = /LS4ASE2E(\d)(TB|SD)([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = ls4DigitMidRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}${lm[2]}${lm[3]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 95);
+          }
+        }
+        const fs4DigitMidRe = /FS4ASE2E(\d)(TB|SD)([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = fs4DigitMidRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}${lm[2]}${lm[3]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 93);
+          }
+        }
+        const anchorDigitMidRe = /ASE2E(\d)(TB|SD)([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = anchorDigitMidRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}${lm[2]}${lm[3]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 96);
+          }
+        }
+        if (allowLs4TailScanHeuristic(scanCompact)) {
+          recoverVinLs4Ase2E7sdByTailScan(raw).forEach((v) => pushCandidate(v, 86));
+        }
+        for (let si = 0; si <= scanCompact.length - 17; si += 1) {
+          const slice = scanCompact.slice(si, si + 17);
+          if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(slice)) continue;
+          const patched = withLs4LeadIfPossible(slice);
+          if (!patched || !patched.startsWith("LS4")) continue;
+          pushCandidate(patched, 78);
         }
       }
-      const fs4SdTailRe = /FS4ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
-      while ((lm = fs4SdTailRe.exec(scanCompact)) !== null) {
-        const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
-        if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
-          pushCandidate(assembled, 90);
+
+      // Changan: в тексте есть «5TB» / «3TB» / «E3TB» — явные варианты с TB.
+      if (ls4ChanganAssembly && /5TB|E5TB|3TB|ASE2E\dTB|LS4ASE2E\dTB/i.test(scanCompact)) {
+        const tbRe = /LS4ASE2E([17])TB([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = tbRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}TB${lm[2]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 96);
+          }
+        }
+        const tbDigitRe = /LS4ASE2E(\d)TB([A-HJ-NPR-Z0-9]{6})/gi;
+        while ((lm = tbDigitRe.exec(scanCompact)) !== null) {
+          const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}TB${lm[2]}`);
+          if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
+            pushCandidate(assembled, 98);
+          }
         }
       }
-      const anchorTailRe = /ASE2E([17])SD([A-HJ-NPR-Z0-9]{6})/gi;
-      while ((lm = anchorTailRe.exec(scanCompact)) !== null) {
-        const assembled = normalizeVinValue(`LS4ASE2E${lm[1]}SD${lm[2]}`);
-        if (assembled.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(assembled)) {
-          pushCandidate(assembled, 94);
-        }
+
+      // OCR: E7SD вместо E3TB при том же хвосте (если в строке явно есть 3TB).
+      if (ls4ChanganAssembly && /3TB|ASE2E3TB|LS4ASE2E3TB/i.test(scanCompact)) {
+        const seen3 = new Set(candidates.map((c) => c.value));
+        [...candidates].forEach((c) => {
+          const v = normalizeVinValue(c.value);
+          const m = v.match(/^(LS4ASE2E)7(SD)([A-HJ-NPR-Z0-9]{6})$/);
+          if (!m) return;
+          const alt = normalizeVinValue(`${m[1]}3TB${m[3]}`);
+          if (alt.length !== 17 || seen3.has(alt)) return;
+          if (!isVinValid(alt)) return;
+          seen3.add(alt);
+          pushCandidate(alt, 99);
+        });
       }
-      recoverVinLs4Ase2E7sdByTailScan(raw).forEach((v) => pushCandidate(v, 86));
-      for (let si = 0; si <= scanCompact.length - 17; si += 1) {
-        const slice = scanCompact.slice(si, si + 17);
-        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(slice)) continue;
-        const patched = withLs4LeadIfPossible(slice);
-        if (!patched || !patched.startsWith("LS4")) continue;
-        pushCandidate(patched, 78);
+      if (ls4ChanganAssembly && /5TB|E5TB|TB\d{3}/i.test(scanCompact)) {
+        const seen = new Set(candidates.map((c) => c.value));
+        [...candidates].forEach((c) => {
+          const v = normalizeVinValue(c.value);
+          const m = v.match(/^(LS4ASE2E)([17])SD([A-HJ-NPR-Z0-9]{6})$/);
+          if (!m) return;
+          const alt = normalizeVinValue(`${m[1]}${m[2]}TB${m[3]}`);
+          if (alt.length !== 17 || seen.has(alt)) return;
+          if (!isVinValid(alt)) return;
+          seen.add(alt);
+          pushCandidate(alt, 97);
+        });
       }
 
       if (candidates.length) {
@@ -1880,19 +2364,46 @@ const { id } = useParams();
         const ranked = [...candidates]
           .map((item) => {
             const n = item.value;
+            const wmi = n.slice(0, 3);
+            const winMatch = bestVinSlidingWindowMatch(n, rawCompact);
+            const prefMatch = longestVinPrefixMatchInCompact(n, rawCompact);
             const embedded =
               rawCompact.includes(n) ||
               (n.length >= 10 && rawCompact.includes(n.slice(0, 10))) ||
               (n.length >= 8 && rawCompact.includes(n.slice(0, 8)));
-            const embeddedBonus = embedded ? 42 : 0;
+            const embeddedBonus = embedded ? 52 : 0;
+            const wmiSeenInRawBonus = wmi && rawCompact.includes(wmi) ? 34 : 0;
+            let ls4TailPenalty = 0;
+            if (/^LS4ASE2E\d(SD|TB)/.test(n)) {
+              const tail = n.slice(11);
+              const tailDigits = (tail.match(/\d/g) || []).length;
+              if (tailDigits <= 3) ls4TailPenalty += 70;
+              else if (tailDigits === 4) ls4TailPenalty += 45;
+              if (/L6T|4T1|JTD|JT2|JT3|JT4|5TD|2T1/.test(tail)) ls4TailPenalty += 95;
+            }
+            const tbAdj = vinChanganTbSdEvidenceAdjust(n, scanCompact);
             const q = scoreVinCandidate(item.value);
             return {
               ...item,
               quality: q,
-              finalScore: item.score + q + embeddedBonus,
+              winMatch,
+              finalScore:
+                item.score +
+                q +
+                embeddedBonus +
+                wmiSeenInRawBonus -
+                ls4TailPenalty +
+                tbAdj.bonus -
+                tbAdj.penalty +
+                winMatch * 3 +
+                prefMatch * 2,
             };
           })
-          .sort((a, b) => b.finalScore - a.finalScore);
+          .sort((a, b) => {
+            if (Number(b.checksumOk) !== Number(a.checksumOk)) return Number(b.checksumOk) - Number(a.checksumOk);
+            if ((b.winMatch || 0) !== (a.winMatch || 0)) return (b.winMatch || 0) - (a.winMatch || 0);
+            return b.finalScore - a.finalScore;
+          });
         vinCandidatesDebugRef.current = ranked
           .slice(0, 5)
           .map(
@@ -1902,11 +2413,32 @@ const { id } = useParams();
           .join(" ; ");
         const validChecksumCandidates = ranked.filter((item) => item.checksumOk);
         let pool = validChecksumCandidates.length ? validChecksumCandidates : ranked;
-        if (/LS4/i.test(rawCompact)) {
-          const ls4Only = pool.filter((item) => item.value.startsWith("LS4"));
+        const strongLs4Hint =
+          isLikelyChanganLs4PlateOcr(rawCompact) ||
+          (hasLs4FamilyInOcrCompact(rawCompact) && /LS4ASE2/i.test(rawCompact));
+        const strongL6tHint = /L6T[0-9A-Z]{6,}/i.test(rawCompact);
+        if (strongLs4Hint) {
+          const ls4Only =
+            strongL6tHint && pool.some((item) => item.value.startsWith("L6T"))
+              ? []
+              : pool.filter((item) => item.value.startsWith("LS4"));
           if (ls4Only.length) pool = ls4Only;
         }
-        return pool[0].value;
+        let picked = pool[0] || ranked[0];
+        const bestOverall = ranked[0];
+        const bestChecksum = validChecksumCandidates[0];
+        if (bestOverall && !bestOverall.checksumOk) {
+          const strongRawEvidence =
+            rawCompact.includes(bestOverall.value) ||
+            (bestOverall.value.length >= 15 && rawCompact.includes(bestOverall.value.slice(0, 15)));
+          const scoreMargin = bestChecksum ? bestOverall.finalScore - bestChecksum.finalScore : 999;
+          // Для ряда азиатских VIN checksum в OCR часто нестабилен, поэтому
+          // разрешаем взять лучший общий кандидат при явном совпадении в сыром тексте.
+          if (strongRawEvidence && scoreMargin >= 24) {
+            picked = bestOverall;
+          }
+        }
+        return picked.value;
       }
 
       // 4) Очень шумный случай — fallback без фильтров по шуму
@@ -1916,7 +2448,9 @@ const { id } = useParams();
         vinCandidatesDebugRef.current = `fallback: ${fallback.slice(0, 3).join(", ")}`;
       }
       const fb0 = normalizeVinValue(fallback[0] || "");
-      if (/LS4/i.test(compact) && fb0 && !fb0.startsWith("LS4")) return "";
+      if (isLikelyChanganLs4PlateOcr(compact) && /LS4ASE2/i.test(compact) && fb0 && !fb0.startsWith("LS4")) {
+        return "";
+      }
       return fb0;
     };
     const pickSegmentByLabels = (labelRegex, stopRegex) => {
@@ -2623,6 +3157,34 @@ const { id } = useParams();
     return canvas;
   };
 
+  /** По первому проходу OCR: похоже на китайский шильдик — латинский VIN обычно во 2-й строке. */
+  const isChineseStickerPlateOcrHint = (rawText) =>
+    /长安|车辆识别|识别代号|制造|CHANGAN|长安汽车|整车型号|发动机型号|发动机排量|最大允许总质量|乘坐人数|中国[\s\S]{0,16}汽车|SC6485|JL473|LS[456]ASE2/i.test(
+      String(rawText || "")
+    );
+
+  /**
+   * Вторая горизонтальная полоса вертикального шильдика (под строкой производителя),
+   * как ROI для ФИО — зона, где чаще всего одна строка с VIN.
+   */
+  const cropChinesePlateVinSecondRowCanvas = (sourceCanvas) => {
+    if (!sourceCanvas) return null;
+    const sw = sourceCanvas.width;
+    const sh = sourceCanvas.height;
+    if (!sw || !sh) return null;
+    const sx = Math.floor(sw * 0.02);
+    const sy = Math.floor(sh * 0.15);
+    const cw = Math.floor(sw * 0.96);
+    const ch = Math.floor(sh * 0.28);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    canvas.width = cw;
+    canvas.height = ch;
+    ctx.drawImage(sourceCanvas, sx, sy, cw, ch, 0, 0, cw, ch);
+    return canvas;
+  };
+
   const fileToRoiCanvas = async (file) => {
     if (!file?.type?.startsWith("image/")) return null;
     const bitmap = await createImageBitmap(file);
@@ -2943,6 +3505,7 @@ const { id } = useParams();
           await withMutedTesseractWasmNoise(async () => {
             const fullRes = await worker.recognize(file);
             text = fullRes?.data?.text || "";
+            const chinesePlateHint = isChineseStickerPlateOcrHint(text);
             const focusCanvases = buildVinFocusedCanvases(fullCanvas);
             const vinCanvases = [];
             const seenDims = new Set();
@@ -2953,6 +3516,14 @@ const { id } = useParams();
               seenDims.add(key);
               vinCanvases.push(c);
             };
+            if (chinesePlateHint && fullCanvas) {
+              const cnVinRow = cropChinesePlateVinSecondRowCanvas(fullCanvas);
+              const cnVinRowBw = cnVinRow
+                ? buildVinContrastCanvas(cnVinRow, { scale: 2, threshold: 145, invert: false })
+                : null;
+              pushUniqueCanvas(cnVinRow);
+              if (cnVinRowBw) pushUniqueCanvas(cnVinRowBw);
+            }
             focusCanvases.forEach((base, idx) => {
               pushUniqueCanvas(base);
               if (idx <= 1) {
@@ -2980,12 +3551,12 @@ const { id } = useParams();
               });
             }
             sourceText = `${vinTexts.join("\n")}\n${text}`;
-            mergedVinOcr = [text, ...vinTexts].join("\n");
+            mergedVinOcr = [...vinTexts, text].join("\n");
             const parsedByAttempt = vinParsedAttempts.map((x) => x.parsed);
             bestVin = pickBestVinValue(
               [
-                ...parsedByAttempt,
                 parseRecognizedTextByField("vin", mergedVinOcr),
+                ...parsedByAttempt,
                 parseRecognizedTextByField("vin", text),
               ],
               mergedVinOcr
@@ -2993,10 +3564,12 @@ const { id } = useParams();
             bestAttempt = vinParsedAttempts.find(
               (x) => normalizeVinValue(x.parsed) === normalizeVinValue(bestVin)
             );
-            setOcrDebug(`field:vin image full=${text.length} tries=${vinRecognizeTries} best=${bestVin || "-"}`);
+            setOcrDebug(
+              `field:vin image full=${text.length} tries=${vinRecognizeTries} cn2row=${chinesePlateHint ? "yes" : "no"} best=${bestVin || "-"}`
+            );
             setOcrFieldDebug((prev) => ({
               ...prev,
-              vin: `image: full=${text.length}, tries=${vinRecognizeTries} -> parsed: ${bestVin || "-"} | candidates: ${bestAttempt?.candidates || vinCandidatesDebugRef.current || "none"}`,
+              vin: `image: full=${text.length}, tries=${vinRecognizeTries}, cn2row=${chinesePlateHint ? "on" : "off"} -> parsed: ${bestVin || "-"} | candidates: ${bestAttempt?.candidates || vinCandidatesDebugRef.current || "none"}`,
             }));
           }, { lingerMs: 280 });
           if (bestVin) {
@@ -3695,6 +4268,29 @@ doc.setFont("Roboto", "normal");
     }
   });
 
+  const savedDocumentPreviewEntries = [];
+  docFieldConfigs.forEach((item) => {
+    const displayLabel = formatDocFieldLabel(item.label);
+    (existingDocsByKey[item.key] || []).forEach((file) => {
+      savedDocumentPreviewEntries.push({
+        key: item.key,
+        displayLabel,
+        originalName: file.originalName,
+        href: file.savedName ? `${API_URL}/uploads/${file.savedName}` : null,
+      });
+    });
+    (uploadedDocsByKey[item.key] || []).forEach((file) => {
+      const localFile = files[item.key] instanceof File ? files[item.key] : null;
+      savedDocumentPreviewEntries.push({
+        key: item.key,
+        displayLabel,
+        originalName: file.originalName,
+        href: null,
+        localFile,
+      });
+    });
+  });
+
   const existingPhotos = existingFiles.filter(
     (file) => file.key === "photos" || isImageName(file.originalName)
   );
@@ -3715,14 +4311,16 @@ doc.setFont("Roboto", "normal");
   const getCardAttachmentsForKey = (key) => {
     const attachments = Array.isArray(selectedMailCard?.attachments) ? selectedMailCard.attachments : [];
     if (!attachments.length) return [];
+    const attNameLower = (att) => String(att?.originalname || att?.filename || "").toLowerCase();
+    const attStemLower = (att) => attNameLower(att).replace(/\.[^.]+$/, "");
     const isPdfAttachment = (att) => {
       const mime = String(att?.mimetype || "").toLowerCase();
-      const name = String(att?.originalname || att?.filename || "").toLowerCase();
+      const name = attNameLower(att);
       return mime.includes("pdf") || name.endsWith(".pdf");
     };
     const isImageAttachment = (att) => {
       const mime = String(att?.mimetype || "").toLowerCase();
-      const name = String(att?.originalname || att?.filename || "").toLowerCase();
+      const name = attNameLower(att);
       return mime.startsWith("image/") || /\.(jpg|jpeg|png|webp|bmp|gif|heic|heif)$/i.test(name);
     };
     const has12DigitName = (att) => {
@@ -3730,35 +4328,145 @@ doc.setFont("Roboto", "normal");
       const stem = raw.replace(/\.[^.]+$/, "").trim();
       return /^\d{12}$/.test(stem);
     };
+    const has12DigitsInName = (att) => {
+      const raw = String(att?.originalname || att?.filename || "").replace(/\s/g, "");
+      return /\d{12}/.test(raw);
+    };
     const hasAnyKeyword = (name, keywords) => keywords.some((kw) => name.includes(kw));
 
+    /** Техпаспорт — не поле «о владении ТС»; иначе забирает файл у «тех описание». */
+    const looksLikeTechPassportName = (att) => {
+      const full = attNameLower(att);
+      const stem = attStemLower(att);
+      if (full.includes("техпаспорт") || full.includes("тех паспорт")) return true;
+      if (stem === "тех" || /^тех[\s._-]/.test(stem)) return true;
+      return false;
+    };
+
+    /** Акт — отдельное поле; не подставляем в «о владении ТС». */
+    const looksLikeActDocName = (att) => {
+      const stem = attStemLower(att);
+      return stem.startsWith("акт") || stem.startsWith("act");
+    };
+
+    /** Акт: имя файла всегда начинается с «Акт» / act (напр. Акт_59699)ФИО - VIN). */
+    if (key === "actDoc") {
+      const filtered = attachments.filter(looksLikeActDocName);
+      return [...filtered].sort((a, b) => {
+        let sa = 0;
+        let sb = 0;
+        if (isPdfAttachment(a)) sa += 20;
+        if (isPdfAttachment(b)) sb += 20;
+        return sb - sa;
+      });
+    }
+
+    /** «О владении ТС»: PDF; приоритет — док/доки, фамилия+имя, 4 цифры (напр. Тулеков Жолдас 3359). */
+    if (key === "ownershipDoc") {
+      const pool = attachments.filter(
+        (att) => isPdfAttachment(att) && !looksLikeTechPassportName(att) && !looksLikeActDocName(att)
+      );
+      const vinTail = vinNormalized.length >= 4 ? vinNormalized.slice(-4) : "";
+      const fioParts = String(form.fio || "")
+        .toLowerCase()
+        .split(/[\s,._+-]+/)
+        .map((w) => w.replace(/[^а-яёa-z0-9]/gi, ""))
+        .filter((w) => w.length >= 3);
+      const surname = fioParts[0] || "";
+      const firstName = fioParts[1] || "";
+
+      const normalizeForMatch = (name) => name.replace(/[_-]+/g, " ");
+      const hasDocNameHint = (name) => {
+        const n = normalizeForMatch(name);
+        if (n.includes("доки")) return true;
+        if (/(^|[^а-яёa-z])док([^а-яёa-z]|$)/.test(n)) return true;
+        if (/\bдок\b/.test(n)) return true;
+        return n.startsWith("док") || n.includes(" док ");
+      };
+      const hasFourDigitsInName = (name) => /\d{4}/.test(name);
+
+      const scoreOwnership = (att, name) => {
+        const n = normalizeForMatch(name);
+        let s = 0;
+
+        if (n.includes("доки")) s += 220;
+        else if (hasDocNameHint(n)) s += 200;
+
+        if (surname && n.includes(surname)) s += 95;
+        if (firstName && n.includes(firstName)) s += 95;
+        if (surname && firstName && n.includes(surname) && n.includes(firstName)) s += 130;
+
+        if (vinTail && n.includes(vinTail)) s += 210;
+        else if (hasFourDigitsInName(n)) s += 175;
+
+        if (hasAnyKeyword(n, ["влад", "владен", "ownership", "сртс", "птс", "pts"])) s += 25;
+        return s;
+      };
+
+      return [...pool].sort((a, b) => scoreOwnership(b, attNameLower(b)) - scoreOwnership(a, attNameLower(a)));
+    }
+
+    /** Удостоверение: в приоритете «удос», «удостоверение», ИИН (12 цифр) в имени файла. */
+    if (key === "udostoverenie") {
+      const scoreUdostoverenie = (att, name) => {
+        let s = 0;
+        if (name.includes("удостоверение")) s += 240;
+        else if (name.includes("удостовер")) s += 210;
+        else if (name.includes("удос")) s += 200;
+        if (has12DigitName(att)) s += 230;
+        else if (has12DigitsInName(att)) s += 195;
+        if (isPdfAttachment(att)) s += 35;
+        if (isImageAttachment(att)) s += 25;
+        if (hasAnyKeyword(name, ["паспорт", "passport", "жеке", "куәлік", "kylik", "identity", "id card"])) {
+          s += 30;
+        }
+        return s;
+      };
+      return [...attachments].sort(
+        (a, b) => scoreUdostoverenie(b, attNameLower(b)) - scoreUdostoverenie(a, attNameLower(a))
+      );
+    }
+
+    /** Шильдик: почти всегда фото — не берём PDF из карточки. */
+    if (key === "other1") {
+      const pool = attachments.filter(isImageAttachment);
+      const badgeHints = ["шильдик", "бирка", "vin", "таблич", "plate", "маркиров"];
+      const scoreBadge = (att, name) => {
+        let s = 0;
+        if (hasAnyKeyword(name, badgeHints)) s += 55;
+        if (/(^|[^a-z])photo([^a-z]|$)/i.test(String(att?.originalname || att?.filename || ""))) s += 85;
+        return s;
+      };
+      return [...pool].sort((a, b) => scoreBadge(b, attNameLower(b)) - scoreBadge(a, attNameLower(a)));
+    }
+
     const keywordsByKey = {
-      udostoverenie: ["удост", "удостовер", "passport", "паспорт", "id", "iin"],
-      ownershipDoc: ["влад", "сртс", "техпаспорт", "ownership", "pts", "птс"],
-      techDescription: ["техопис", "описан", "spec", "характерист"],
-      actDoc: ["акт", "act"],
-      other1: ["шильдик", "vin", "таблич", "plate", "маркиров"],
+      techDescription: [
+        "техопис",
+        "техпаспорт",
+        "тех паспорт",
+        "описан",
+        "spec",
+        "характерист",
+        "тех.",
+        "тех_",
+        "тех-",
+      ],
     };
     const keywords = keywordsByKey[key] || [];
 
     const ranked = [...attachments].sort((a, b) => {
-      const nameA = String(a?.originalname || a?.filename || "").toLowerCase();
-      const nameB = String(b?.originalname || b?.filename || "").toLowerCase();
+      const nameA = attNameLower(a);
+      const nameB = attNameLower(b);
 
       const score = (att, name) => {
         let s = 0;
         if (hasAnyKeyword(name, keywords)) s += 30;
 
-        if (key === "other1") {
-          if (isImageAttachment(att)) s += 120; // шильдик: сначала фото
-          if (isPdfAttachment(att)) s -= 10;
-        }
-
-        if (key === "udostoverenie") {
-          const hasUdvKeyword = hasAnyKeyword(name, ["удв", "удост", "удостовер"]);
-          if (isPdfAttachment(att)) s += 80; // удостоверение: сначала PDF
-          if (has12DigitName(att)) s += 120; // частый формат имени
-          if (hasUdvKeyword) s += 140; // самый сильный приоритет
+        if (key === "techDescription") {
+          if (isPdfAttachment(att) || isImageAttachment(att)) s += 25;
+          if (looksLikeTechPassportName(att)) s += 80;
+          if (attStemLower(att).startsWith("тех")) s += 35;
         }
 
         return s;
@@ -3778,7 +4486,16 @@ doc.setFont("Roboto", "normal");
       }
       const candidates = getCardAttachmentsForKey(key);
       if (!candidates.length) {
-        alert("В выбранной карточке нет вложений");
+        const hasAny = Array.isArray(selectedMailCard.attachments) && selectedMailCard.attachments.length > 0;
+        if (key === "actDoc" && hasAny) {
+          alert("Акт не найден: имя файла должно начинаться с «акт»");
+        } else if (key === "ownershipDoc" && hasAny) {
+          alert("Документ «о владении ТС» не найден: нужен PDF (фото не подставляются)");
+        } else if (key === "other1" && hasAny) {
+          alert("Шильдик не найден: нужно фото (PDF не подставляются)");
+        } else {
+          alert("В выбранной карточке нет вложений");
+        }
         return;
       }
       const selectedFilename = selectedAttachmentByKey[key] || candidates[0]?.filename;
@@ -3830,10 +4547,28 @@ doc.setFont("Roboto", "normal");
     try {
       const usedFilenames = new Set();
       const nextStatus = {};
+      const cardAttachments = Array.isArray(selectedMailCard.attachments) ? selectedMailCard.attachments : [];
       for (const item of docFieldConfigs) {
         const candidates = getCardAttachmentsForKey(item.key);
         if (!candidates.length) {
-          nextStatus[item.key] = { type: "empty", text: "Не найдено вложений" };
+          if (item.key === "actDoc" && cardAttachments.length) {
+            nextStatus[item.key] = {
+              type: "empty",
+              text: "Акт не найден (имя файла должно начинаться с «акт»)",
+            };
+          } else if (item.key === "ownershipDoc" && cardAttachments.length) {
+            nextStatus[item.key] = {
+              type: "empty",
+              text: "О владении ТС: нет подходящего PDF",
+            };
+          } else if (item.key === "other1" && cardAttachments.length) {
+            nextStatus[item.key] = {
+              type: "empty",
+              text: "Шильдик: нет подходящего фото",
+            };
+          } else {
+            nextStatus[item.key] = { type: "empty", text: "Не найдено вложений" };
+          }
           continue;
         }
         const preferredFilename = selectedAttachmentByKey[item.key] || "";
@@ -3922,18 +4657,15 @@ doc.setFont("Roboto", "normal");
           </div>
         ) : null}
         <input
-  name="iin"
-  placeholder="ИИН"
-  value={form.iin}
-  onChange={(e) => {
-    const value = e.target.value.replace(/\D/g, "").slice(0, 12);
-    setForm((prev) => ({ ...prev, iin: value }));
-  }}
-  style={{
-    border: form.iin && !isIinValid ? "2px solid red" : "",
-    backgroundColor: form.iin && !isIinValid ? "#fff5f5" : "",
-  }}
-/>
+          name="iin"
+          placeholder="ИИН"
+          value={form.iin}
+          className={form.iin && !isIinValid ? "field-invalid" : undefined}
+          onChange={(e) => {
+            const value = e.target.value.replace(/\D/g, "").slice(0, 12);
+            setForm((prev) => ({ ...prev, iin: value }));
+          }}
+        />
 <div className="scan-inline-actions">
   <button type="button" className="scan-icon-btn" title="ИИН из фотопленки/камеры" onClick={() => openOcrPicker("iin", "gallery")}>🖼</button>
   <button type="button" className="scan-icon-btn" title="ИИН из документов (PDF/файл)" onClick={() => openOcrPicker("iin", "documents")}>📄</button>
@@ -3959,16 +4691,13 @@ doc.setFont("Roboto", "normal");
             name="vin"
             placeholder="VIN"
             value={form.vin}
+            className={vinHasValue && !vinLooksValid ? "field-invalid" : undefined}
             onChange={(e) =>
               setForm((prev) => ({
                 ...prev,
                 vin: normalizeVinValue(e.target.value),
               }))
             }
-            style={{
-              border: vinHasValue && !vinLooksValid ? "2px solid red" : "",
-              backgroundColor: vinHasValue && !vinLooksValid ? "#fff5f5" : "",
-            }}
           />
           <button type="button" className="scan-icon-btn" title="VIN из фотопленки/камеры" onClick={() => openOcrPicker("vin", "gallery")}>🖼</button>
           <button type="button" className="scan-icon-btn" title="VIN из документов (PDF/файл)" onClick={() => openOcrPicker("vin", "documents")}>📄</button>
@@ -4158,6 +4887,54 @@ doc.setFont("Roboto", "normal");
           ) : null}
         </div>
 
+        {savedDocumentPreviewEntries.length > 0 ? (
+          <div className="saved-docs-summary">
+            <h3 className="left-section-title">Прикреплённые документы</h3>
+            <ul className="saved-docs-summary-list">
+              {savedDocumentPreviewEntries.map((entry, idx) => {
+                const canDownload = Boolean(entry.href || entry.localFile);
+                return (
+                  <li key={`${entry.key}-${entry.originalName}-${idx}`} className="saved-docs-summary-item">
+                    <div className="saved-docs-summary-item-main">
+                      <span className="saved-docs-summary-label">{entry.displayLabel}:</span>{" "}
+                      {canDownload ? (
+                        entry.href ? (
+                          <a
+                            href={entry.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="saved-docs-summary-name saved-docs-summary-link"
+                          >
+                            {entry.originalName}
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className="saved-docs-summary-name saved-docs-summary-link"
+                            onClick={() => openSavedPreviewEntry(entry)}
+                          >
+                            {entry.originalName}
+                          </button>
+                        )
+                      ) : (
+                        <span className="saved-docs-summary-name">{entry.originalName}</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="attachment-download-btn"
+                      disabled={!canDownload}
+                      onClick={() => downloadSavedPreviewEntry(entry)}
+                    >
+                      Скачать
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+
         <div className="left-section">
           <h3 className="left-section-title">Документы</h3>
           <div className="left-section-subtitle">Загрузите файлы заявки</div>
@@ -4169,20 +4946,11 @@ doc.setFont("Roboto", "normal");
               disabled={mailCardsLoading || mailCards.length === 0}
             >
               <option value="">Выберите карточку</option>
-              {mailCards
-                .filter((card) => String(card.columnId || "") === "new")
-                .map((card) => (
-                  <option key={String(card._id)} value={String(card._id)}>
-                    {card.title || "Без названия"} ({(card.attachments || []).length} влож.)
-                  </option>
-                ))}
-              {mailCards
-                .filter((card) => String(card.columnId || "") !== "new")
-                .map((card) => (
-                  <option key={String(card._id)} value={String(card._id)}>
-                    {card.title || "Без названия"} ({(card.attachments || []).length} влож.)
-                  </option>
-                ))}
+              {mailCards.map((card) => (
+                <option key={String(card._id)} value={String(card._id)}>
+                  {card.title || "Без названия"} ({(card.attachments || []).length} влож.)
+                </option>
+              ))}
             </select>
             {mailCardsError ? (
               <div style={{ marginTop: "6px", color: "#b91c1c", fontSize: "12px" }}>{mailCardsError}</div>
@@ -4245,26 +5013,26 @@ doc.setFont("Roboto", "normal");
                 <div className="attached-list">
                   {existingDocsByKey[item.key].map((file) => (
                     <div key={`${file.key}-${file.index}`} className="attached-item">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                        {file.savedName ? (
-                          <a
-                            href={`${API_URL}/uploads/${file.savedName}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                      <div className="attached-item-row">
+                        <span className="attached-item-name">{file.originalName}</span>
+                        <div className="attached-item-actions">
+                          <button
+                            type="button"
+                            className="attachment-download-btn"
+                            disabled={!file.savedName}
+                            onClick={() => downloadExistingDocFile(file)}
                           >
-                            {file.originalName}
-                          </a>
-                        ) : (
-                          <span>{file.originalName}</span>
-                        )}
-                        <button
-                          type="button"
-                          className="scan-icon-btn"
-                          title="Удалить файл из заявки"
-                          onClick={() => removeExistingDoc(item.key, file)}
-                        >
-                          X
-                        </button>
+                            Скачать
+                          </button>
+                          <button
+                            type="button"
+                            className="scan-icon-btn"
+                            title="Удалить файл из заявки"
+                            onClick={() => removeExistingDoc(item.key, file)}
+                          >
+                            X
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -4275,16 +5043,25 @@ doc.setFont("Roboto", "normal");
                 <div className="attached-list">
                   {uploadedDocsByKey[item.key].map((file, index) => (
                     <div key={`${file.key}-new-${index}`} className="attached-item">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                        <span>{file.originalName}</span>
-                        <button
-                          type="button"
-                          className="scan-icon-btn"
-                          title="Убрать загруженный файл"
-                          onClick={() => removeUploadedDoc(item.key)}
-                        >
-                          X
-                        </button>
+                      <div className="attached-item-row">
+                        <span className="attached-item-name">{file.originalName}</span>
+                        <div className="attached-item-actions">
+                          <button
+                            type="button"
+                            className="attachment-download-btn"
+                            onClick={() => downloadUploadedDocFile(item.key, file)}
+                          >
+                            Скачать
+                          </button>
+                          <button
+                            type="button"
+                            className="scan-icon-btn"
+                            title="Убрать загруженный файл"
+                            onClick={() => removeUploadedDoc(item.key)}
+                          >
+                            X
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -4350,6 +5127,14 @@ doc.setFont("Roboto", "normal");
                     <div className="app-photo-row-actions app-photo-row-menu-root">
                       <button
                         type="button"
+                        className="attachment-download-btn"
+                        disabled={!previewHref}
+                        onClick={() => downloadPhotoRow(row)}
+                      >
+                        Скачать
+                      </button>
+                      <button
+                        type="button"
                         className="app-photo-menu-btn"
                         title="Действия"
                         onClick={() => setPhotoRowMenuKey((k) => (k === rowKey ? "" : rowKey))}
@@ -4360,9 +5145,6 @@ doc.setFont("Roboto", "normal");
                         <div className="app-photo-file-menu">
                           <button type="button" onClick={() => openPhotoInNewWindow(row)} disabled={!previewHref}>
                             Просмотр в новом окне
-                          </button>
-                          <button type="button" onClick={() => downloadPhotoRow(row)} disabled={!previewHref}>
-                            Скачать
                           </button>
                         </div>
                       ) : null}
@@ -4389,7 +5171,7 @@ doc.setFont("Roboto", "normal");
                 const galIdx = photoGalleryRows.findIndex(
                   (r) => r.kind === "uploaded" && String(r.entry.savedName) === String(file.savedName)
                 );
-                const previewHref = galIdx >= 0 ? getPhotoRowHref(row) : "";
+                const previewHref = getPhotoRowHref(row) || "";
                 const showThumb = Boolean(previewHref);
                 return (
                   <div key={`photo-new-${file.savedName}-${file.originalName}-${index}`} className="attached-item app-photo-row">
@@ -4423,6 +5205,14 @@ doc.setFont("Roboto", "normal");
                     <div className="app-photo-row-actions app-photo-row-menu-root">
                       <button
                         type="button"
+                        className="attachment-download-btn"
+                        disabled={!previewHref}
+                        onClick={() => downloadPhotoRow(row)}
+                      >
+                        Скачать
+                      </button>
+                      <button
+                        type="button"
                         className="app-photo-menu-btn"
                         title="Действия"
                         onClick={() => setPhotoRowMenuKey((k) => (k === rowKey ? "" : rowKey))}
@@ -4433,9 +5223,6 @@ doc.setFont("Roboto", "normal");
                         <div className="app-photo-file-menu">
                           <button type="button" onClick={() => openPhotoInNewWindow(row)} disabled={!previewHref}>
                             Просмотр в новом окне
-                          </button>
-                          <button type="button" onClick={() => downloadPhotoRow(row)} disabled={!previewHref}>
-                            Скачать
                           </button>
                         </div>
                       ) : null}
