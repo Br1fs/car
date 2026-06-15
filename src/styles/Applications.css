@@ -41,6 +41,20 @@
 
 /* ================== ТАБЛИЦА ================== */
 .applications-table {
+  --apps-col-num: 52px;
+  --apps-col-protocol: 82px;
+  --apps-col-date: 145px;
+  --apps-col-status: 170px;
+  --apps-col-fio: 380px;
+  --apps-col-vin: 190px;
+  --apps-col-type: 160px;
+  --apps-col-brand: 130px;
+  --apps-col-model: 140px;
+  --apps-col-year: 70px;
+  --apps-col-volume: 90px;
+  --apps-col-broker: 90px;
+  --apps-col-actions: 480px;
+
   background: #fff;
   border-radius: 10px;
   overflow-x: auto;
@@ -60,19 +74,19 @@
 .table-header {
   display: grid;
   grid-template-columns:
-    80px /* № */
-    110px /* № протокола */
-    145px /* дата */ 
-    170px /* статус */ 
-    280px /* ФИО */ 
-    190px /* VIN */ 
-    160px /* Тип */ 
-    130px /* Марка */ 
-    140px /* Модель */ 
-    70px /* Год */ 
-    90px /* Объём */ 
-    130px /* Брокер */ 
-    480px; /* Действия */
+    var(--apps-col-num)
+    var(--apps-col-protocol)
+    var(--apps-col-date)
+    var(--apps-col-status)
+    var(--apps-col-fio)
+    var(--apps-col-vin)
+    var(--apps-col-type)
+    var(--apps-col-brand)
+    var(--apps-col-model)
+    var(--apps-col-year)
+    var(--apps-col-volume)
+    var(--apps-col-broker)
+    var(--apps-col-actions);
   background: #eef1f6;
   font-weight: 600;
   font-size: 14px;
@@ -108,19 +122,19 @@
 .applications-table-row {
   display: grid;
   grid-template-columns:
-    80px
-    110px
-    145px
-    170px
-    280px
-    190px
-    160px
-    130px
-    140px
-    70px
-    90px
-    130px
-    480px;
+    var(--apps-col-num)
+    var(--apps-col-protocol)
+    var(--apps-col-date)
+    var(--apps-col-status)
+    var(--apps-col-fio)
+    var(--apps-col-vin)
+    var(--apps-col-type)
+    var(--apps-col-brand)
+    var(--apps-col-model)
+    var(--apps-col-year)
+    var(--apps-col-volume)
+    var(--apps-col-broker)
+    var(--apps-col-actions);
   cursor: pointer;
 }
 
@@ -139,6 +153,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.applications-table-row > .col-fio,
+.table-header > .col-fio {
+  text-align: left;
+  justify-content: flex-start;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.applications-table-row > .col-broker,
+.table-header > .col-broker {
+  font-size: 13px;
 }
 
 /* ================== СТАТУСЫ ================== */

@@ -57,10 +57,12 @@ export default function Applications() {
         const res = await axios.get(`${API_URL}/api/applications`);
 
         const sorted = [...res.data].sort((a, b) => {
-          const aManual = a?.source === "journal_manual" ? 1 : 0;
-          const bManual = b?.source === "journal_manual" ? 1 : 0;
-          if (aManual !== bManual) return bManual - aManual;
-          return new Date(b.createdAt) - new Date(a.createdAt);
+          const aTime = new Date(a?.createdAt).getTime();
+          const bTime = new Date(b?.createdAt).getTime();
+          const aMs = Number.isFinite(aTime) ? aTime : 0;
+          const bMs = Number.isFinite(bTime) ? bTime : 0;
+          if (bMs !== aMs) return bMs - aMs;
+          return String(b._id || "").localeCompare(String(a._id || ""));
         });
 
         setApps(sorted);
@@ -200,18 +202,18 @@ export default function Applications() {
 
         {/* HEADER */}
         <div className="table-header">
-          <div>№</div>
-          <div>№ протокола</div>
+          <div className="col-num">№</div>
+          <div className="col-protocol">№ протокола</div>
           <div>Дата</div>
           <div>Статус</div>
-          <div>ФИО</div>
+          <div className="col-fio">ФИО</div>
           <div className="vin">VIN</div>
           <div>Тип</div>
           <div>Марка</div>
           <div>Модель</div>
           <div>Год</div>
           <div>Объём</div>
-          <div>Брокер</div>
+          <div className="col-broker">Брокер</div>
           <div className="actions">Действия</div>
         </div>
 
@@ -223,8 +225,8 @@ export default function Applications() {
             onClick={() => navigate(`/applications/${app._id}`)}
           >
 
-            <div>{(currentPage - 1) * pageSize + index + 1}</div>
-            <div>{app.protocolNumber || "-"}</div>
+            <div className="col-num">{(currentPage - 1) * pageSize + index + 1}</div>
+            <div className="col-protocol">{app.protocolNumber || "-"}</div>
             <div>{formatDateRu(app.createdAt)}</div>
 
             <div className={`status ${getStatusClass(app.status1)}`} onClick={(e) => e.stopPropagation()}>
@@ -244,14 +246,14 @@ export default function Applications() {
               </select>
             </div>
 
-            <div>{app.fio || "-"}</div>
+            <div className="col-fio">{app.fio || "-"}</div>
             <div className="vin">{app.vin || "-"}</div>
             <div>{app.typ || "-"}</div>
             <div>{app.brand || "-"}</div>
             <div>{app.model || "-"}</div>
             <div>{app.year || "-"}</div>
             <div>{app.volume || "-"}</div>
-            <div>{app.broker || "-"}</div>
+            <div className="col-broker">{app.broker || "-"}</div>
 
             <div className="actions">
               <button

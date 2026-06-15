@@ -993,7 +993,55 @@ const AUTO_FILL_EXCLUDED_KEYS = new Set([
   "createdAt",
   "protocolDate",
   "protocolNumber",
+  "characteristics",
+  "activityLogs",
+  "statusTimeline",
+  "specialistTimeline",
+  "updatedAt",
+  "createdBy",
+  "sourcePage",
+  "actorName",
 ]);
+
+const findMatchedCar = (cars, carSelection) => {
+  if (!cars.length) return null;
+  if (!carSelection.type || !carSelection.brand || !carSelection.model) return null;
+
+  return (
+    cars.find((car) => {
+      if (!isEqualLoose(car.type, carSelection.type)) return false;
+      if (!isEqualLoose(car.brand, carSelection.brand)) return false;
+      if (!isEqualLoose(car.model, carSelection.model)) return false;
+
+      if (carSelection.pickCarId) return String(car._id) === String(carSelection.pickCarId);
+      const hasYear = String(carSelection.year ?? "").trim() !== "";
+      const hasVol = String(carSelection.volume ?? "").trim() !== "";
+      if (!hasYear && !hasVol) return false;
+      if (hasYear && !isEqualLoose(car.year, carSelection.year)) return false;
+      if (hasVol && !isEqualLoose(car.volume, carSelection.volume)) return false;
+      return true;
+    }) || null
+  );
+};
+
+const buildCarAutofillForm = (prev, matched, carSelection, skipKeys = new Set()) => {
+  const autoFill = {};
+  Object.entries(matched).forEach(([key, value]) => {
+    if (AUTO_FILL_EXCLUDED_KEYS.has(key)) return;
+    if (skipKeys.has(key)) return;
+    autoFill[key] = value;
+  });
+
+  return {
+    ...prev,
+    ...autoFill,
+    type: carSelection.type,
+    brand: carSelection.brand,
+    model: carSelection.model,
+    year: carSelection.year || String(matched.year ?? ""),
+    volume: carSelection.volume || String(matched.volume ?? ""),
+  };
+};
 
 const normalizeCompareValue = (value) =>
   String(value ?? "")
@@ -1210,6 +1258,7 @@ const { id } = useParams();
   const [ocrDebug, setOcrDebug] = useState("");
   const [ocrFieldDebug, setOcrFieldDebug] = useState({});
   const ocrDocumentRef = useRef(null);
+  const userEditedFormKeysRef = useRef(new Set());
   const vinCandidatesDebugRef = useRef("");
   const [mailCards, setMailCards] = useState([]);
   const [mailCardsLoading, setMailCardsLoading] = useState(false);
@@ -1274,6 +1323,7 @@ const { id } = useParams();
   useEffect(() => {
   const copiedState = location.state?.copyFrom || location.state?.copiedData;
   if (!copiedState || cars.length === 0) return;
+  userEditedFormKeysRef.current = new Set();
   const selectedCar = { ...copiedState };
   delete selectedCar.protocolNumber;
 
@@ -1451,46 +1501,27 @@ const { id } = useParams();
   }, [generationCandidates, carSelection.pickCarId]);
 
   useEffect(() => {
+    if (id) return;
     if (!cars.length) return;
     if (!carSelection.type || !carSelection.brand || !carSelection.model) return;
 
-    const matched = cars.find((car) => {
-      if (!isEqualLoose(car.type, carSelection.type)) return false;
-      if (!isEqualLoose(car.brand, carSelection.brand)) return false;
-      if (!isEqualLoose(car.model, carSelection.model)) return false;
-
-      if (carSelection.pickCarId) return String(car._id) === String(carSelection.pickCarId);
-      const hasYear = String(carSelection.year ?? "").trim() !== "";
-      const hasVol = String(carSelection.volume ?? "").trim() !== "";
-      if (!hasYear && !hasVol) return false;
-      if (hasYear && !isEqualLoose(car.year, carSelection.year)) return false;
-      if (hasVol && !isEqualLoose(car.volume, carSelection.volume)) return false;
-      return true;
-    });
-
+    const matched = findMatchedCar(cars, carSelection);
     if (!matched) return;
 
     setForm((prev) => {
-      const autoFill = {};
-      Object.entries(matched).forEach(([key, value]) => {
-        if (AUTO_FILL_EXCLUDED_KEYS.has(key)) return;
-        autoFill[key] = value;
-      });
-
-      const next = {
-        ...prev,
-        ...autoFill,
-        type: carSelection.type,
-        brand: carSelection.brand,
-        model: carSelection.model,
-        year: carSelection.year || String(matched.year ?? ""),
-        volume: carSelection.volume || String(matched.volume ?? ""),
-      };
-
-      const changed = Object.keys(next).some((key) => String(next[key] ?? "") !== String(prev[key] ?? ""));
+      const next = buildCarAutofillForm(
+        prev,
+        matched,
+        carSelection,
+        userEditedFormKeysRef.current
+      );
+      const changed = Object.keys(next).some(
+        (key) => String(next[key] ?? "") !== String(prev[key] ?? "")
+      );
       return changed ? next : prev;
     });
   }, [
+    id,
     cars,
     carSelection.type,
     carSelection.brand,
@@ -1502,6 +1533,10 @@ const { id } = useParams();
 
   const handleCarSelectionChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "type" || name === "brand" || name === "model") {
+      userEditedFormKeysRef.current = new Set();
+    }
 
     setCarSelection((prev) => {
       const next = {
@@ -1564,6 +1599,7 @@ const { id } = useParams();
 
   const pickGenerationCar = (car) => {
     if (!car?._id) return;
+    userEditedFormKeysRef.current = new Set();
     setCarSelection((prev) => ({
       ...prev,
       year: car.year != null && car.year !== "" ? String(car.year) : "",
@@ -1574,6 +1610,7 @@ const { id } = useParams();
 
   const handleFuelTypeSelectionChange = (e) => {
     const value = e.target.value;
+    userEditedFormKeysRef.current = new Set();
 
     setCarSelection({
       type: "",
@@ -5342,9 +5379,10 @@ doc.setFont("Roboto", "normal");
               <div className="table-cell value">
                 <textarea
                   value={item.value || ""}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, [item.key]: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    userEditedFormKeysRef.current.add(item.key);
+                    setForm((prev) => ({ ...prev, [item.key]: e.target.value }));
+                  }}
                   rows={2}
                 />
               </div>
@@ -5357,9 +5395,11 @@ doc.setFont("Roboto", "normal");
         </button>
 
         <div className="pdf-buttons">
-          <button className="pdf-btn" onClick={createNewApplication}>
-            Создать заявку
-          </button>
+          {!id && (
+            <button className="pdf-btn" onClick={createNewApplication}>
+              Создать заявку
+            </button>
+          )}
 
           <button className="pdf-btn" onClick={generatePDF}>
             Сформировать МАКЕТ
