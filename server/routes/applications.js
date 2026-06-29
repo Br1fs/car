@@ -7,6 +7,7 @@ import { getDB } from "../db.js";
 import { ObjectId } from "mongodb";
 import { writeAuditLog } from "../utils/auditLog.js";
 import { buildWaMeUrl, normalizePhoneForWhatsApp } from "../utils/whatsappPhone.js";
+import { buildTechregPayload } from "../utils/techregMapper.js";
 
 const router = express.Router();
 
@@ -332,6 +333,36 @@ router.get("/:id", async (req, res) => {
   } catch (err) {
     console.error("GET BY ID ERROR:", err);
     res.status(500).json({ message: "Ошибка сервера" });
+  }
+});
+
+// ================= GET techreg payload =================
+router.get("/:id/techreg-payload", async (req, res) => {
+  try {
+    const db = getDB();
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Неверный ID" });
+    }
+
+    const application = await db
+      .collection("applications")
+      .findOne({ _id: new ObjectId(id) });
+
+    if (!application) {
+      return res.status(404).json({ message: "Заявка не найдена" });
+    }
+
+    const mapped = buildTechregPayload(application);
+    return res.json({
+      applicationId: id,
+      generatedAt: new Date().toISOString(),
+      ...mapped,
+    });
+  } catch (err) {
+    console.error("GET TECHREG PAYLOAD ERROR:", err);
+    return res.status(500).json({ message: "Ошибка формирования payload" });
   }
 });
 
